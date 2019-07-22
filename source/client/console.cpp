@@ -1055,7 +1055,7 @@ void Con_DrawConsole( void ) {
 	time( &long_time );
 	newtime = localtime( &long_time );
 
-	Q_snprintfz( version, sizeof( version ), "%02d:%02d %s v%4.2f alpha", newtime->tm_hour, newtime->tm_min,
+	Q_snprintfz( version, sizeof( version ), "%02d:%02d %s v%4.2f beta", newtime->tm_hour, newtime->tm_min,
 				 APPLICATION, APP_VERSION );
 
 	scaled = 4 * pixelRatio;
