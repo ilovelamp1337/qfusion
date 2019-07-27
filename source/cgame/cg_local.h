@@ -19,6 +19,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 // cg_local.h -- local definitions for client game module
 
+#define CGAME_HARD_LINKED
+
+#define CGAME_L10N_DOMAIN   "cgame"
+
 #include "../gameshared/q_arch.h"
 #include "../gameshared/q_math.h"
 #include "../gameshared/q_shared.h"
@@ -31,7 +35,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "ref.h"
 
 #include "cg_public.h"
-#include "cg_syscalls.h"
 
 #include <algorithm>
 #include <memory>
@@ -635,7 +638,7 @@ extern cg_static_t cgs;
 extern cg_state_t cg;
 
 #define ISVIEWERENTITY( entNum )  ( ( cg.predictedPlayerState.POVnum > 0 ) && ( (int)cg.predictedPlayerState.POVnum == entNum ) && ( cg.view.type == VIEWDEF_PLAYERVIEW ) )
-#define ISBRUSHMODEL( x ) ( ( ( x > 0 ) && ( (int)x < trap_CM_NumInlineModels() ) ) ? true : false )
+#define ISBRUSHMODEL( x ) ( ( ( x > 0 ) && ( (int)x < CG_NumInlineModels() ) ) ? true : false )
 
 #define ISREALSPECTATOR()       ( cg.frame.playerState.stats[STAT_REALTEAM] == TEAM_SPECTATOR )
 #define SPECSTATECHANGED()      ( ( cg.frame.playerState.stats[STAT_REALTEAM] == TEAM_SPECTATOR ) != ( cg.oldFrame.playerState.stats[STAT_REALTEAM] == TEAM_SPECTATOR ) )
@@ -648,11 +651,9 @@ extern centity_t cg_entities[MAX_EDICTS];
 extern cvar_t *cg_gun;
 extern cvar_t *cg_gun_alpha;
 
-bool CG_NewFrameSnap( snapshot_t *frame, snapshot_t *lerpframe );
-struct cmodel_s *CG_CModelForEntity( int entNum );
+const struct cmodel_s *CG_CModelForEntity( int entNum );
 void CG_SoundEntityNewState( centity_t *cent );
 void CG_AddEntities( void );
-void CG_GetEntitySpatilization( int entNum, vec3_t origin, vec3_t velocity );
 void CG_LerpEntities( void );
 void CG_LerpGenericEnt( centity_t *cent );
 
@@ -750,7 +751,6 @@ void CG_TileClear( void );
 void CG_DrawLoading( void );
 void CG_CenterPrint( const char *str );
 
-void CG_EscapeKey( void );
 void CG_LoadStatusBar( void );
 
 void CG_LoadingString( const char *str );
@@ -810,8 +810,6 @@ typedef struct {
 extern cg_touch_t cg_touches[];
 
 int CG_TouchArea( int area, int x, int y, int w, int h, void ( *upfunc )( int id, int64_t time ) );
-void CG_TouchEvent( int id, touchevent_t type, int x, int y, int64_t time );
-bool CG_IsTouchDown( int id );
 void CG_TouchFrame( void );
 void CG_CancelTouches( void );
 
@@ -953,28 +951,19 @@ extern cvar_t *cg_flashWindowCount;
 
 extern cvar_t *cg_autoRespectMenu;
 
-#define CG_Malloc( size ) trap_MemAlloc( size, __FILE__, __LINE__ )
-#define CG_Free( data ) trap_MemFree( data, __FILE__, __LINE__ )
+#define CG_Malloc( size ) CG_MemAlloc( size, __FILE__, __LINE__ )
+#define CG_Free( data ) CG_MemFree( data, __FILE__, __LINE__ )
 
-int CG_API( void );
-void CG_Init( const char *serverName, unsigned int playerNum,
-			  int vidWidth, int vidHeight, float pixelRatio,
-			  bool demoplaying, const char *demoName, bool pure, unsigned snapFrameTime,
-			  int protocol, const char *demoExtension, int sharedSeed, bool gameStart );
-void CG_Shutdown( void );
 void CG_ValidateItemDef( int tag, char *name );
 
 #ifndef _MSC_VER
-void CG_Printf( const char *format, ... ) __attribute( ( format( printf, 1, 2 ) ) );
-void CG_LocalPrint( const char *format, ... ) __attribute__( ( format( printf, 1, 2 ) ) );
 void CG_Error( const char *format, ... ) __attribute__( ( format( printf, 1, 2 ) ) ) __attribute__( ( noreturn ) );
+void CG_LocalPrint( const char *format, ... ) __attribute__( ( format( printf, 1, 2 ) ) );
 #else
-void CG_Printf( _Printf_format_string_ const char *format, ... );
+__declspec( noreturn ) void CG_Error( _Printf_format_string_ const char *format, ... );
 void CG_LocalPrint( _Printf_format_string_ const char *format, ... );
-void CG_Error( _Printf_format_string_ const char *format, ... );
 #endif
 
-void CG_Reset( void );
 void CG_Precache( void );
 char *_CG_CopyString( const char *in, const char *filename, int fileline );
 #define CG_CopyString( in ) _CG_CopyString( in, __FILE__, __LINE__ )
@@ -982,13 +971,10 @@ char *_CG_CopyString( const char *in, const char *filename, int fileline );
 void CG_UseItem( const char *name );
 void CG_RegisterCGameCommands( void );
 void CG_UnregisterCGameCommands( void );
-void CG_UpdateTVServerString( void );
 void CG_AddAward( const char *str, unsigned timeoutMillis );
 void CG_OverrideWeapondef( int index, const char *cstring );
 
 void CG_StartBackgroundTrack( void );
-
-int CG_AsyncGetRequest( const char *resource, void ( *done_cb )( int status, const char *resp ), void *privatep );
 
 const char *CG_TranslateString( const char *string );
 const char *CG_TranslateColoredString( const char *string, char *dst, size_t dst_size );
@@ -996,8 +982,7 @@ const char *CG_TranslateColoredString( const char *string, char *dst, size_t dst
 //
 // cg_svcmds.c
 //
-void CG_ConfigString( int i, const char *s );
-void CG_GameCommand( const char *command );
+
 void CG_SC_AutoRecordAction( const char *action );
 
 //
@@ -1044,10 +1029,8 @@ void CG_ResetColorBlend( void );
 void CG_StartKickAnglesEffect( vec3_t source, float knockback, float radius, int time );
 void CG_StartColorBlendEffect( float r, float g, float b, float a, int time );
 void CG_StartFallKickEffect( int bounceTime );
-float CG_GetSensitivityScale( float sens, float zoomSens );
 void CG_ViewSmoothPredictedSteps( vec3_t vieworg );
 float CG_ViewSmoothFallKick( void );
-void CG_RenderView( int frameTime, int realFrameTime, int64_t realTime, int64_t serverTime, float stereo_separation, unsigned extrapolationTime );
 void CG_AddKickAngles( vec3_t viewangles );
 bool CG_ChaseStep( int step );
 bool CG_SwitchChaseCamMode( void );
@@ -1129,10 +1112,6 @@ void CG_WaveSpark( const vec3_t emitterOrigin );
 //
 void CG_ClearEffects( void );
 
-inline void CG_AddLightToScene( const vec3_t org, float programRadius, float coronaRadius, float r, float g, float b ) {
-	trap_R_AddLightToScene( org, programRadius, coronaRadius, r, g, b );
-}
-
 void CG_AllocShadeBox( int entNum, const vec3_t origin, const vec3_t mins, const vec3_t maxs, struct shader_s *shader );
 void CG_AddShadeBoxes( void );
 void CG_ClearLightStyles( void );
@@ -1207,14 +1186,6 @@ void CG_DrawChat( cg_gamechat_t *chat, int x, int y, char *fontName, struct qfon
 //
 void CG_InitInput( void );
 void CG_ShutdownInput( void );
-void CG_InputFrame( int frameTime );
-void CG_ClearInputState( void );
-
-void CG_MouseMove( int mx, int my );
-
-unsigned int CG_GetButtonBits( void );
-void CG_AddViewAngles( vec3_t viewAngles );
-void CG_AddMovement( vec3_t movement );
 
 /**
  * Gets up to two bound keys for a command.
@@ -1225,6 +1196,22 @@ void CG_AddMovement( vec3_t movement );
  */
 void CG_GetBoundKeysString( const char *cmd, char *keys, size_t keysSize );
 
-void CG_GetTouchMovement( vec3_t movement );
+void NET_GetUserCmd( int frame, usercmd_t *cmd );
+int NET_GetCurrentUserCmdNum();
+void NET_GetCurrentState( int64_t *incomingAcknowledged, int64_t *outgoingSequence, int64_t *outgoingSent );
 
-//=================================================
+struct cmodel_s;
+
+const cmodel_s *CG_InlineModel( int num );
+const cmodel_s *CG_ModelForBBox( const vec3_t mins, const vec3_t maxs );
+const cmodel_s *CG_OctagonModelForBBox( const vec3_t mins, const vec3_t maxs );
+int CG_NumInlineModels();
+void CG_TransformedBoxTrace( trace_t *tr, const vec3_t start, const vec3_t end, const vec3_t mins, const vec3_t maxs, const cmodel_s *cmodel, int brushmask, const vec3_t origin, const vec3_t angles );
+int CG_TransformedPointContents( const vec3_t p, const cmodel_s *cmodel, const vec3_t origin, const vec3_t angles );
+void CG_InlineModelBounds( const cmodel_s *cmodel, vec3_t mins, vec3_t maxs );
+bool CG_InPVS( const vec3_t p1, const vec3_t p2 );
+
+void *CG_MemAlloc( size_t size, const char *filename, int fileline );
+void CG_MemFree( void *data, const char *filename, int fileline );
+
+bool CG_AddRawSamplesListener( cinematics_s *cin, void *listener, cg_raw_samples_cb_t rs, cg_get_raw_samples_cb_t grs );

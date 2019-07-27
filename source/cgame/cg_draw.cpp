@@ -19,6 +19,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #include "cg_local.h"
+#include "../ref_gl/r_frontend.h"
+#include "../client/client.h"
 
 /*
 ===============================================================================
@@ -104,7 +106,7 @@ void CG_DrawHUDNumeric( int x, int y, int align, float *color, int charwidth, in
 		}
 		u = ( frame & 3 ) * 0.25f;
 		v = ( frame >> 2 ) * 0.25f;
-		trap_R_DrawStretchPic( x, y, charwidth, charheight, u, v, u + 0.25f, v + 0.25f, color, CG_MediaShader( cgs.media.shaderSbNums ) );
+		RF_DrawStretchPic( x, y, charwidth, charheight, u, v, u + 0.25f, v + 0.25f, color, CG_MediaShader( cgs.media.shaderSbNums ) );
 		x += charwidth;
 		ptr++;
 		length--;
@@ -155,7 +157,7 @@ void CG_DrawHUDField( int x, int y, int align, float *color, int size, int width
 		}
 		u = ( frame & 3 ) * 0.25f;
 		v = ( frame >> 2 ) * 0.25f;
-		trap_R_DrawStretchPic( x, y, w, h, u, v, u + 0.25f, v + 0.25f, color, CG_MediaShader( cgs.media.shaderSbNums ) );
+		RF_DrawStretchPic( x, y, w, h, u, v, u + 0.25f, v + 0.25f, color, CG_MediaShader( cgs.media.shaderSbNums ) );
 		x += w;
 		ptr++;
 		length--;
@@ -205,10 +207,10 @@ static void CG_DrawModel( int x, int y, int align, int w, int h, struct model_s 
 		Vector4Set( entity.outlineRGBA, 0, 0, 0, 255 );
 	}
 
-	trap_R_ClearScene();
+	RF_ClearScene();
 	CG_SetBoneposesForTemporaryEntity( &entity );
 	CG_AddEntityToScene( &entity );
-	trap_R_RenderScene( &refdef );
+	RF_RenderScene( &refdef );
 }
 
 /*
@@ -219,7 +221,7 @@ void CG_DrawHUDModel( int x, int y, int align, int w, int h, struct model_s *mod
 	vec3_t origin, angles;
 
 	// get model bounds
-	trap_R_ModelBounds( model, mins, maxs );
+	R_ModelBounds( model, mins, maxs );
 
 	// try to fill the the window with the model
 	origin[0] = 0.5 * ( maxs[2] - mins[2] ) * ( 1.0 / 0.179 );
@@ -282,7 +284,7 @@ void CG_DrawMiniMap( int x, int y, int iw, int ih, bool draw_playernames, bool d
 	tmp_yellow_alpha[3] = color[3];
 
 	// Get Worldmodel bounds...
-	trap_R_ModelBounds( NULL, mins, maxs ); // NULL for world model...
+	R_ModelBounds( NULL, mins, maxs ); // NULL for world model...
 
 	// make it a square bounding box
 	VectorSubtract( maxs, mins, extend );
@@ -356,7 +358,7 @@ void CG_DrawMiniMap( int x, int y, int iw, int ih, bool draw_playernames, bool d
 				VectorSet( tmp_col, 1, 1, 1 );
 			} else {
 				// players might be SVF_FORCETEAM'ed for teammates, prevent ugly flickering for specs
-				if( cg.predictedPlayerState.stats[STAT_REALTEAM] == TEAM_SPECTATOR && !trap_CM_InPVS( cg.view.origin, cent->ent.origin ) ) {
+				if( cg.predictedPlayerState.stats[STAT_REALTEAM] == TEAM_SPECTATOR && !CG_InPVS( cg.view.origin, cent->ent.origin ) ) {
 					continue;
 				}
 				CG_TeamColor( cent->current.team, tmp_col );
@@ -374,12 +376,12 @@ void CG_DrawMiniMap( int x, int y, int iw, int ih, bool draw_playernames, bool d
 				thisSize = std::max( box_size, 8 ) * cgs.vidHeight / 600;
 				thisX = CG_VerticalAlignForHeight( x + (int)coords[0], ALIGN_CENTER_MIDDLE, thisSize );
 				thisY = CG_VerticalAlignForHeight( y + (int)coords[1] - thisSize, ALIGN_CENTER_MIDDLE, thisSize );
-				trap_R_DrawStretchPic( thisX, thisY, thisSize, thisSize, 0, 0, 1, 1, tmp_yellow_alpha, CG_MediaShader( cgs.media.shaderDownArrow ) );
+				RF_DrawStretchPic( thisX, thisY, thisSize, thisSize, 0, 0, 1, 1, tmp_yellow_alpha, CG_MediaShader( cgs.media.shaderDownArrow ) );
 			}
 
 			// do we want names too?
 			if( draw_playernames == true ) {
-				trap_SCR_DrawString( x + (int)coords[0] + 8 * nameDir * cgs.vidHeight / 600, y + (int)coords[1] - 4 * cgs.vidHeight / 600,
+				SCR_DrawString( x + (int)coords[0] + 8 * nameDir * cgs.vidHeight / 600, y + (int)coords[1] - 4 * cgs.vidHeight / 600,
 									 nameAlign, COM_RemoveColorTokensExt( cgs.clientInfo[cent->current.number - 1].name, true ),
 									 cgs.fontSystemSmall, tmp_yellow_alpha );
 			}
@@ -401,7 +403,7 @@ void CG_DrawMiniMap( int x, int y, int iw, int ih, bool draw_playernames, bool d
 
 				thisX = CG_VerticalAlignForHeight( x + coords[0], ALIGN_CENTER_MIDDLE, thisSize );
 				thisY = CG_VerticalAlignForHeight( y + coords[1], ALIGN_CENTER_MIDDLE, thisSize );
-				trap_R_DrawStretchPic( thisX, thisY, thisSize, thisSize, 0, 0, 1, 1, tmp_this_color, cent->ent.customShader );
+				RF_DrawStretchPic( thisX, thisY, thisSize, thisSize, 0, 0, 1, 1, tmp_this_color, cent->ent.customShader );
 			}
 		} else if( cent->item && cent->item->icon ) {
 			int thisOffset = 8 * cgs.vidHeight / 600;
@@ -410,9 +412,9 @@ void CG_DrawMiniMap( int x, int y, int iw, int ih, bool draw_playernames, bool d
 			// if ALIGN_CENTER_MIDDLE or something is used, images are fucked
 			// so thats why they are set manually at the correct pos with -n
 			CG_DrawHUDRect( x + (int)coords[0] - thisOffset, y + (int)coords[1] - thisOffset,
-							ALIGN_LEFT_TOP, thisSize, thisSize, 1, 1, tmp_white_alpha, trap_R_RegisterPic( cent->item->icon ) );
+							ALIGN_LEFT_TOP, thisSize, thisSize, 1, 1, tmp_white_alpha, R_RegisterPic( cent->item->icon ) );
 			if( draw_itemnames == true ) {
-				trap_SCR_DrawString( x + (int)coords[0] + 2 * nameDir * thisOffset, y + (int)coords[1] - thisOffset,
+				SCR_DrawString( x + (int)coords[0] + 2 * nameDir * thisOffset, y + (int)coords[1] - thisOffset,
 									 nameAlign, cent->item->shortname, cgs.fontSystemSmall, tmp_yellow_alpha );
 			}
 		}
@@ -471,7 +473,7 @@ void CG_DrawHUDRect( int x, int y, int align, int w, int h, int val, int maxval,
 	x = CG_HorizontalAlignForWidth( x, align, w );
 	y = CG_VerticalAlignForHeight( y, align, h );
 
-	trap_R_DrawStretchPic( x, y, w, h, tc[0][0], tc[1][0], tc[0][1], tc[1][1], color, shader );
+	RF_DrawStretchPic( x, y, w, h, tc[0][0], tc[1][0], tc[0][1], tc[1][1], color, shader );
 }
 
 /*
@@ -488,7 +490,7 @@ void CG_DrawPicBar( int x, int y, int width, int height, int align, float percen
 	}
 
 	if( backColor ) {
-		trap_R_DrawStretchPic( x, y, width, height, 0, 0, 1, 1, backColor, shader );
+		RF_DrawStretchPic( x, y, width, height, 0, 0, 1, 1, backColor, shader );
 	}
 
 	if( !color ) {
@@ -508,5 +510,5 @@ void CG_DrawPicBar( int x, int y, int width, int height, int align, float percen
 		heightFrac = 1.0f;
 	}
 
-	trap_R_DrawStretchPic( x, y, (int)( width * widthFrac ), (int)( height * heightFrac ), 0, 0, widthFrac, heightFrac, color, shader );
+	RF_DrawStretchPic( x, y, (int)( width * widthFrac ), (int)( height * heightFrac ), 0.0f, 0.0f, widthFrac, heightFrac, color, shader );
 }

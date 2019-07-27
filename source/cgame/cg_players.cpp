@@ -19,6 +19,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #include "cg_local.h"
+#include "../qcommon/qcommon.h"
+#include "../client/snd_public.h"
 
 static const char *cg_defaultSexedSounds[] =
 {
@@ -89,16 +91,16 @@ static struct sfx_s *CG_RegisterPmodelSexedSound( pmodelinfo_t *pmodelinfo, cons
 	Q_snprintfz( sexedFilename, sizeof( sexedFilename ), "sounds/players/%s/%s", model, oname + 1 );
 
 	if( ( !COM_FileExtension( sexedFilename ) &&
-		  trap_FS_FirstExtension( sexedFilename, SOUND_EXTENSIONS, NUM_SOUND_EXTENSIONS ) ) ||
-		trap_FS_FOpenFile( sexedFilename, NULL, FS_READ ) != -1 ) {
-		sexedSfx->sfx = trap_S_RegisterSound( sexedFilename );
+		FS_FirstExtension( sexedFilename, SOUND_EXTENSIONS, NUM_SOUND_EXTENSIONS ) ) ||
+		FS_FOpenFile( sexedFilename, NULL, FS_READ ) != -1 ) {
+		sexedSfx->sfx = SoundSystem::Instance()->RegisterSound( sexedFilename );
 	} else {   // no, revert to default player sounds folders
 		if( pmodelinfo->sex == GENDER_FEMALE ) {
 			Q_snprintfz( sexedFilename, sizeof( sexedFilename ), "sounds/players/%s/%s", "female", oname + 1 );
-			sexedSfx->sfx = trap_S_RegisterSound( sexedFilename );
+			sexedSfx->sfx = SoundSystem::Instance()->RegisterSound( sexedFilename );
 		} else {
 			Q_snprintfz( sexedFilename, sizeof( sexedFilename ), "sounds/players/%s/%s", "male", oname + 1 );
-			sexedSfx->sfx = trap_S_RegisterSound( sexedFilename );
+			sexedSfx->sfx = SoundSystem::Instance()->RegisterSound( sexedFilename );
 		}
 	}
 
@@ -165,11 +167,11 @@ void CG_SexedSound( int entnum, int entchannel, const char *name, float fvol, fl
 	entchannel &= ~CHAN_FIXED;
 
 	if( fixed ) {
-		trap_S_StartFixedSound( CG_RegisterSexedSound( entnum, name ), cg_entities[entnum].current.origin, entchannel, fvol, attn );
+		SoundSystem::Instance()->StartFixedSound( CG_RegisterSexedSound( entnum, name ), cg_entities[entnum].current.origin, entchannel, fvol, attn );
 	} else if( ISVIEWERENTITY( entnum ) ) {
-		trap_S_StartGlobalSound( CG_RegisterSexedSound( entnum, name ), entchannel, fvol );
+		SoundSystem::Instance()->StartGlobalSound( CG_RegisterSexedSound( entnum, name ), entchannel, fvol );
 	} else {
-		trap_S_StartRelativeSound( CG_RegisterSexedSound( entnum, name ), entnum, entchannel, fvol, attn );
+		SoundSystem::Instance()->StartRelativeSound( CG_RegisterSexedSound( entnum, name ), entnum, entchannel, fvol, attn );
 	}
 }
 

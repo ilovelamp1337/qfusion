@@ -282,7 +282,6 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 endif()
 
 add_subdirectory(angelwrap)
-add_subdirectory(cgame)
 add_subdirectory(game)
 
 if (NOT GAME_MODULES_ONLY)

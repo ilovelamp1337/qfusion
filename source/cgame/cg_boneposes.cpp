@@ -19,7 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #include "cg_local.h"
-
+#include "../ref_gl/r_frontend.h"
 
 
 //========================================================================
@@ -37,9 +37,9 @@ static void CG_PrintBoneTree( cgs_skeleton_t *skel, bonenode_t *node, int level 
 
 	if( node->bonenum != -1 ) {
 		for( i = 0; i < level; i++ ) {
-			CG_Printf( "  " );
+			Com_Printf( "  " );
 		}
-		CG_Printf( "%i %s\n", skel->bones[node->bonenum].parent, skel->bones[node->bonenum].name );
+		Com_Printf( "%i %s\n", skel->bones[node->bonenum].parent, skel->bones[node->bonenum].name );
 	}
 
 	level++;
@@ -104,7 +104,7 @@ cgs_skeleton_t *CG_SkeletonForModel( struct model_s *model ) {
 		return NULL;
 	}
 
-	numBones = trap_R_SkeletalGetNumBones( model, &numFrames );
+	numBones = R_SkeletalGetNumBones( model, &numFrames );
 	if( !numBones || !numFrames ) {
 		return NULL; // no bones or frames
 
@@ -127,13 +127,13 @@ cgs_skeleton_t *CG_SkeletonForModel( struct model_s *model ) {
 
 	// register bones
 	for( i = 0, bone = skel->bones; i < numBones; i++, bone++ )
-		bone->parent = trap_R_SkeletalGetBoneInfo( model, i, bone->name, sizeof( bone->name ), &bone->flags );
+		bone->parent = R_SkeletalGetBoneInfo( model, i, bone->name, sizeof( bone->name ), &bone->flags );
 
 	// register poses for all frames for all bones
 	for( i = 0; i < numFrames; i++ ) {
 		skel->bonePoses[i] = ( bonepose_t * )buffer; buffer += numBones * sizeof( bonepose_t );
 		for( j = 0, bonePose = skel->bonePoses[i]; j < numBones; j++, bonePose++ )
-			trap_R_SkeletalGetBonePose( model, j, i, bonePose );
+			R_SkeletalGetBonePose( model, j, i, bonePose );
 	}
 
 	skel->next = skel_headnode;
@@ -244,12 +244,12 @@ bool CG_LerpSkeletonPoses( cgs_skeleton_t *skel, int curframe, int oldframe, bon
 	}
 
 	if( curframe >= skel->numFrames || curframe < 0 ) {
-		CG_Printf( S_COLOR_YELLOW "CG_LerpSkeletonPoses: out of bounds frame: %i [%i]\n", curframe, skel->numFrames );
+		Com_Printf( S_COLOR_YELLOW "CG_LerpSkeletonPoses: out of bounds frame: %i [%i]\n", curframe, skel->numFrames );
 		curframe = 0;
 	}
 
 	if( oldframe >= skel->numFrames || oldframe < 0 ) {
-		CG_Printf( S_COLOR_YELLOW "CG_LerpSkeletonPoses: out of bounds oldframe: %i [%i]\n", oldframe, skel->numFrames );
+		Com_Printf( S_COLOR_YELLOW "CG_LerpSkeletonPoses: out of bounds oldframe: %i [%i]\n", oldframe, skel->numFrames );
 		oldframe = 0;
 	}
 
@@ -313,7 +313,7 @@ bool CG_SkeletalPoseGetAttachment( orientation_t *orient, cgs_skeleton_t *skel,
 	cg_tagmask_t *tagmask;
 
 	if( !boneposes || !skel ) {
-		CG_Printf( "CG_SkeletalPoseLerpAttachment: Wrong model or boneposes %s\n", bonename );
+		Com_Printf( "CG_SkeletalPoseLerpAttachment: Wrong model or boneposes %s\n", bonename );
 		return false;
 	}
 
@@ -337,7 +337,7 @@ bool CG_SkeletalPoseGetAttachment( orientation_t *orient, cgs_skeleton_t *skel,
 	}
 
 	if( i == skel->numBones ) {
-		CG_Printf( "CG_SkeletalPoseLerpAttachment: no such bone %s\n", bonename );
+		Com_Printf( "CG_SkeletalPoseLerpAttachment: no such bone %s\n", bonename );
 		return false;
 	}
 
@@ -475,4 +475,12 @@ void CG_FreeTemporaryBoneposesCache( void ) {
 	CG_Free( TBC );
 	TBC_Size = 0;
 	TBC_Count = 0;
+
+	cgs_skeleton_t * nextSkel;
+	for( cgs_skeleton_t *skel = skel_headnode; skel; skel = nextSkel ) {
+		nextSkel = skel->next;
+		CG_Free( skel );
+	}
+
+	skel_headnode = nullptr;
 }

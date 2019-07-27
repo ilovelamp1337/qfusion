@@ -19,6 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #include "cg_local.h"
+#include "../ref_gl/r_frontend.h"
 
 #define MAX_CGPOLYS                     ( 1024 + 512 )
 #define MAX_CGPOLY_VERTS                16
@@ -465,6 +466,6 @@ void CG_AddPolys( void ) {
 			}
 		}
 
-		trap_R_AddPolyToScene( poly );
+		RF_AddPolyToScene( poly );
 	}
 }

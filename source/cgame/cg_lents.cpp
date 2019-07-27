@@ -21,6 +21,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // cg_lents.c -- client side temporary entities
 
 #include "cg_local.h"
+#include "../client/snd_public.h"
+#include "../ref_gl/r_frontend.h"
 
 #define MAX_LOCAL_ENTITIES  512
 
@@ -542,7 +544,7 @@ void CG_BoltExplosionMode( const vec3_t pos, const vec3_t dir, int fire_mode, in
 	// add white energy particles on the impact
 	CG_ImpactPuffParticles( pos, dir, 15, 0.75f, 1, 1, 1, 1, NULL );
 
-	trap_S_StartFixedSound( CG_MediaSfx( cgs.media.sfxElectroboltHit ), pos, CHAN_AUTO,
+	SoundSystem::Instance()->StartFixedSound( CG_MediaSfx( cgs.media.sfxElectroboltHit ), pos, CHAN_AUTO,
 							cg_volume_effects->value, ATTN_STATIC );
 }
 
@@ -592,7 +594,7 @@ void CG_InstaExplosionMode( const vec3_t pos, const vec3_t dir, int fire_mode, i
 	// add white energy particles on the impact
 	CG_ImpactPuffParticles( pos, dir, 15, 0.75f, 1, 1, 1, 1, NULL );
 
-	trap_S_StartFixedSound( CG_MediaSfx( cgs.media.sfxElectroboltHit ), pos, CHAN_AUTO,
+	SoundSystem::Instance()->StartFixedSound( CG_MediaSfx( cgs.media.sfxElectroboltHit ), pos, CHAN_AUTO,
 							cg_volume_effects->value, ATTN_STATIC );
 }
 
@@ -608,11 +610,11 @@ void CG_RocketExplosionMode( const vec3_t pos, const vec3_t dir, int fire_mode, 
 	VecToAngles( dir, angles );
 
 	if( fire_mode == FIRE_MODE_STRONG ) {
-		//trap_S_StartSound ( pos, 0, 0, CG_MediaSfx (cgs.media.sfxRocketLauncherStrongHit), cg_volume_effects->value, ATTN_NORM, 0 );
+		//SoundSystem::Instance()->StartSound ( pos, 0, 0, CG_MediaSfx (cgs.media.sfxRocketLauncherStrongHit), cg_volume_effects->value, ATTN_NORM, 0 );
 		CG_SpawnDecal( pos, dir, random() * 360, radius * 0.5, 1, 1, 1, 1, 10, 1, false, CG_MediaShader( cgs.media.shaderExplosionMark ) );
 
 	} else {
-		//trap_S_StartSound ( pos, 0, 0, CG_MediaSfx (cgs.media.sfxRocketLauncherWeakHit), cg_volume_effects->value, ATTN_NORM, 0 );
+		//SoundSystem::Instance()->StartSound ( pos, 0, 0, CG_MediaSfx (cgs.media.sfxRocketLauncherWeakHit), cg_volume_effects->value, ATTN_NORM, 0 );
 		CG_SpawnDecal( pos, dir, random() * 360, radius * 0.25, 1, 1, 1, 1, 10, 1, false, CG_MediaShader( cgs.media.shaderExplosionMark ) );
 	}
 
@@ -648,13 +650,13 @@ void CG_RocketExplosionMode( const vec3_t pos, const vec3_t dir, int fire_mode, 
 	CG_ParticleExplosionEffect( pos, dir, 1, 0.5, 0, 32 );
 
 	if( fire_mode == FIRE_MODE_STRONG ) {
-		trap_S_StartFixedSound( CG_MediaSfx( cgs.media.sfxRocketLauncherStrongHit ), pos, CHAN_AUTO, cg_volume_effects->value, ATTN_DISTANT );
+		SoundSystem::Instance()->StartFixedSound( CG_MediaSfx( cgs.media.sfxRocketLauncherStrongHit ), pos, CHAN_AUTO, cg_volume_effects->value, ATTN_DISTANT );
 	} else {
-		trap_S_StartFixedSound( CG_MediaSfx( cgs.media.sfxRocketLauncherWeakHit ), pos, CHAN_AUTO, cg_volume_effects->value, ATTN_DISTANT );
+		SoundSystem::Instance()->StartFixedSound( CG_MediaSfx( cgs.media.sfxRocketLauncherWeakHit ), pos, CHAN_AUTO, cg_volume_effects->value, ATTN_DISTANT );
 	}
 
 	if( cg_heavyRocketExplosions->integer ) {
-		trap_S_StartFixedSound( CG_MediaSfx( cgs.media.sfxExplosionLfe ), pos, CHAN_AUTO, cg_volume_effects->value, ATTN_NORM );
+		SoundSystem::Instance()->StartFixedSound( CG_MediaSfx( cgs.media.sfxExplosionLfe ), pos, CHAN_AUTO, cg_volume_effects->value, ATTN_NORM );
 	}
 
 	//jalfixme: add sound at water?
@@ -699,13 +701,13 @@ void CG_WaveExplosionMode( const vec3_t pos, const vec3_t dir, int fire_mode, fl
 	CG_ParticleExplosionEffect( pos, dir, 0.9, 1.0, 1.0, 64, 0.0f );
 
 	if( fire_mode == FIRE_MODE_STRONG ) {
-		trap_S_StartFixedSound( CG_MediaSfx( cgs.media.sfxWaveStrongHit ), pos, CHAN_AUTO, cg_volume_effects->value, ATTN_DISTANT );
+		SoundSystem::Instance()->StartFixedSound( CG_MediaSfx( cgs.media.sfxWaveStrongHit ), pos, CHAN_AUTO, cg_volume_effects->value, ATTN_DISTANT );
 	} else {
-		trap_S_StartFixedSound( CG_MediaSfx( cgs.media.sfxWaveWeakHit ), pos, CHAN_AUTO, cg_volume_effects->value, ATTN_DISTANT );
+		SoundSystem::Instance()->StartFixedSound( CG_MediaSfx( cgs.media.sfxWaveWeakHit ), pos, CHAN_AUTO, cg_volume_effects->value, ATTN_DISTANT );
 	}
 
 	if( cg_heavyShockwaveExplosions->integer ) {
-		trap_S_StartFixedSound( CG_MediaSfx( cgs.media.sfxExplosionLfe ), pos, CHAN_AUTO, cg_volume_effects->value, ATTN_NORM );
+		SoundSystem::Instance()->StartFixedSound( CG_MediaSfx( cgs.media.sfxExplosionLfe ), pos, CHAN_AUTO, cg_volume_effects->value, ATTN_NORM );
 	}
 }
 
@@ -740,14 +742,14 @@ void CG_BladeImpact( const vec3_t pos, const vec3_t dir ) {
 		le->ent.rotation = rand() % 360;
 		le->ent.scale = 1.0f;
 
-		trap_S_StartFixedSound( CG_MediaSfx( cgs.media.sfxBladeFleshHit[(int)( random() * 3 )] ), pos, CHAN_AUTO,
+		SoundSystem::Instance()->StartFixedSound( CG_MediaSfx( cgs.media.sfxBladeFleshHit[(int)( random() * 3 )] ), pos, CHAN_AUTO,
 								cg_volume_effects->value, ATTN_NORM );
 	} else if( trace.surfFlags & SURF_DUST ) {
 		// throw particles on dust
 		CG_ParticleEffect( trace.endpos, trace.plane.normal, 0.30f, 0.30f, 0.25f, 30 );
 
 		//fixme? would need a dust sound
-		trap_S_StartFixedSound( CG_MediaSfx( cgs.media.sfxBladeWallHit[(int)( random() * 2 )] ), pos, CHAN_AUTO,
+		SoundSystem::Instance()->StartFixedSound( CG_MediaSfx( cgs.media.sfxBladeWallHit[(int)( random() * 2 )] ), pos, CHAN_AUTO,
 								cg_volume_effects->value, ATTN_NORM );
 	} else {
 		le = CG_AllocModel( LE_ALPHA_FADE, pos, angles, 3, //3 frames for weak
@@ -759,7 +761,7 @@ void CG_BladeImpact( const vec3_t pos, const vec3_t dir ) {
 
 		CG_ParticleEffect( trace.endpos, trace.plane.normal, 0.30f, 0.30f, 0.25f, 15 );
 
-		trap_S_StartFixedSound( CG_MediaSfx( cgs.media.sfxBladeWallHit[(int)( random() * 2 )] ), pos, CHAN_AUTO,
+		SoundSystem::Instance()->StartFixedSound( CG_MediaSfx( cgs.media.sfxBladeWallHit[(int)( random() * 2 )] ), pos, CHAN_AUTO,
 								cg_volume_effects->value, ATTN_NORM );
 		if( !( trace.surfFlags & SURF_NOMARKS ) ) {
 			CG_SpawnDecal( pos, dir, random() * 10, 8, 1, 1, 1, 1, 10, 1, false, CG_MediaShader( cgs.media.shaderBladeMark ) );
@@ -788,7 +790,7 @@ void CG_LaserGunImpact( const vec3_t pos, const vec3_t dir, float radius, const 
 
 	AnglesToAxis( angles, ent.axis );
 
-	trap_R_AddEntityToScene( &ent );
+	RF_AddEntityToScene( &ent );
 }
 
 /*
@@ -1238,13 +1240,13 @@ void CG_GrenadeExplosionMode( const vec3_t pos, const vec3_t dir, int fire_mode,
 	CG_ParticleExplosionEffect( pos, dir, 1, 0.5, 0, 32 );
 
 	if( fire_mode == FIRE_MODE_STRONG ) {
-		trap_S_StartFixedSound( CG_MediaSfx( cgs.media.sfxGrenadeStrongExplosion ), pos, CHAN_AUTO, cg_volume_effects->value, ATTN_DISTANT );
+		SoundSystem::Instance()->StartFixedSound( CG_MediaSfx( cgs.media.sfxGrenadeStrongExplosion ), pos, CHAN_AUTO, cg_volume_effects->value, ATTN_DISTANT );
 	} else {
-		trap_S_StartFixedSound( CG_MediaSfx( cgs.media.sfxGrenadeWeakExplosion ), pos, CHAN_AUTO, cg_volume_effects->value, ATTN_DISTANT );
+		SoundSystem::Instance()->StartFixedSound( CG_MediaSfx( cgs.media.sfxGrenadeWeakExplosion ), pos, CHAN_AUTO, cg_volume_effects->value, ATTN_DISTANT );
 	}
 
 	if( cg_heavyGrenadeExplosions->integer ) {
-		trap_S_StartFixedSound( CG_MediaSfx( cgs.media.sfxExplosionLfe ), pos, CHAN_AUTO, cg_volume_effects->value, ATTN_NORM );
+		SoundSystem::Instance()->StartFixedSound( CG_MediaSfx( cgs.media.sfxExplosionLfe ), pos, CHAN_AUTO, cg_volume_effects->value, ATTN_NORM );
 	}
 }
 
@@ -1284,12 +1286,12 @@ void CG_GenericExplosion( const vec3_t pos, const vec3_t dir, int fire_mode, flo
 
 	// use the rocket explosion sounds
 	if( fire_mode == FIRE_MODE_STRONG ) {
-		trap_S_StartFixedSound( CG_MediaSfx( cgs.media.sfxRocketLauncherStrongHit ), pos, CHAN_AUTO, cg_volume_effects->value, ATTN_DISTANT );
+		SoundSystem::Instance()->StartFixedSound( CG_MediaSfx( cgs.media.sfxRocketLauncherStrongHit ), pos, CHAN_AUTO, cg_volume_effects->value, ATTN_DISTANT );
 	} else {
-		trap_S_StartFixedSound( CG_MediaSfx( cgs.media.sfxRocketLauncherWeakHit ), pos, CHAN_AUTO, cg_volume_effects->value, ATTN_DISTANT );
+		SoundSystem::Instance()->StartFixedSound( CG_MediaSfx( cgs.media.sfxRocketLauncherWeakHit ), pos, CHAN_AUTO, cg_volume_effects->value, ATTN_DISTANT );
 	}
 
-	trap_S_StartFixedSound( CG_MediaSfx( cgs.media.sfxExplosionLfe ), pos, CHAN_AUTO, cg_volume_effects->value, ATTN_DISTANT );
+	SoundSystem::Instance()->StartFixedSound( CG_MediaSfx( cgs.media.sfxExplosionLfe ), pos, CHAN_AUTO, cg_volume_effects->value, ATTN_DISTANT );
 }
 
 /*
@@ -1628,7 +1630,7 @@ void CG_AddLocalEntities( void ) {
 		ent = &le->ent;
 
 		if( le->light && scale ) {
-			CG_AddLightToScene( le->lightOrigin, le->light * scale, 0, le->lightcolor[0], le->lightcolor[1], le->lightcolor[2] );
+			RF_AddLightToScene( le->lightOrigin, le->light * scale, 0, le->lightcolor[0], le->lightcolor[1], le->lightcolor[2] );
 		}
 
 		if( le->type == LE_LASER ) {

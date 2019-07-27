@@ -19,6 +19,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #include "cg_local.h"
+#include "../qcommon/cvar.h"
+#include "../client/input.h"
+#include "../client/client.h"
+#include "../ref_gl/r_frontend.h"
 
 /*
 ** CG_InitChat
@@ -69,8 +73,8 @@ void CG_DrawChat( cg_gamechat_t *chat, int x, int y, char *fontName, struct qfon
 	int background_y;
 	int first_candidate;
 
-	font_height = trap_SCR_FontHeight( font );
-	message_mode = (int)trap_Cvar_Value( "con_messageMode" );
+	font_height = SCR_FontHeight( font );
+	message_mode = (int)Cvar_Value( "con_messageMode" );
 	chat_active = ( chat->lastMsgTime + GAMECHAT_WAIT_IN_TIME + GAMECHAT_FADE_IN_TIME > cg.realTime || message_mode );
 	lines = 0;
 	total_lines = /*!message_mode ? 0 : */ 1;
@@ -131,22 +135,22 @@ void CG_DrawChat( cg_gamechat_t *chat, int x, int y, char *fontName, struct qfon
 			}
 
 			background_y = y;
-			trap_R_DrawStretchPic( x, background_y, width, height - corner_radius,
+			RF_DrawStretchPic( x, background_y, width, height - corner_radius,
 								   0.0f, 0.0f, 1.0f, 0.5f, backColor, backShader );
 			background_y += height - corner_radius;
 
-			if( trap_IN_IME_GetCandidates( NULL, 0, 10, NULL, &first_candidate ) ) {
+			if( IN_IME_GetCandidates( NULL, 0, 10, NULL, &first_candidate ) ) {
 				int candidates_height = ( first_candidate ? 3 : 5 ) * font_height;
-				trap_R_DrawStretchPic( x, background_y, width, candidates_height,
+				RF_DrawStretchPic( x, background_y, width, candidates_height,
 									   0.0f, 0.5f, 1.0f, 0.5f, backColor, backShader );
 				background_y += candidates_height;
 			}
 
-			trap_R_DrawStretchPic( x, background_y, corner_radius, corner_radius,
+			RF_DrawStretchPic( x, background_y, corner_radius, corner_radius,
 								   0.0f, 0.5f, 0.5f, 1.0f, backColor, backShader );
-			trap_R_DrawStretchPic( x + corner_radius, background_y, width - corner_radius * 2, corner_radius,
+			RF_DrawStretchPic( x + corner_radius, background_y, width - corner_radius * 2, corner_radius,
 								   0.5f, 0.5f, 0.5f, 1.0f, backColor, backShader );
-			trap_R_DrawStretchPic( x + width - corner_radius, background_y, corner_radius, corner_radius,
+			RF_DrawStretchPic( x + width - corner_radius, background_y, corner_radius, corner_radius,
 								   0.5f, 0.5f, 1.0f, 1.0f, backColor, backShader );
 
 			background_drawn = true;
@@ -178,7 +182,7 @@ parse_string:
 			}
 
 			w = -1;
-			len = trap_SCR_StrlenForWidth( text + s, font, width - padding_x * 2 );
+			len = SCR_StrlenForWidth( text + s, font, width - padding_x * 2 );
 			clamp_low( len, 1 );
 
 			for( j = s; ( j < ( s + len ) ) && text[j] != '\0'; j += utf_len ) {
@@ -213,8 +217,7 @@ parse_string:
 					break;
 				}
 
-				trap_SCR_DrawClampString( x + x_offset, y + y_offset, tstr,
-										  x + padding_x, y + padding_y, x - padding_x + width, y - padding_y + height, font, fontColor );
+				SCR_DrawClampString( x + x_offset, y + y_offset, tstr, x + padding_x, y + padding_y, x - padding_x + width, y - padding_y + height, font, fontColor );
 
 				l++;
 			} else {
@@ -231,8 +234,7 @@ parse_string:
 						break;
 					}
 
-					trap_SCR_DrawClampString( x + x_offset, y + y_offset, tstr,
-											  x + padding_x, y + padding_y, x - padding_x + width, y - padding_y + height, font, fontColor );
+					SCR_DrawClampString( x + x_offset, y + y_offset, tstr, x + padding_x, y + padding_y, x - padding_x + width, y - padding_y + height, font, fontColor );
 
 					total_lines++;
 					pass++;
@@ -257,7 +259,7 @@ parse_string:
 	}
 
 	// let the engine know where the input line should be drawn
-	trap_SCR_DrawChat( x + padding_x, y + height - padding_y - font_height, width - padding_x, font );
+	SCR_DrawChat( x + padding_x, y + height - padding_y - font_height, width - padding_x, font );
 
 	chat->lastActive = chat_active;
 }

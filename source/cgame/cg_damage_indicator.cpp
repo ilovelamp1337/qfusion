@@ -19,6 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #include "cg_local.h"
+#include "../qcommon/cvar.h"
 
 /*
 * CG_DamageIndicatorAdd
@@ -50,7 +51,7 @@ void CG_DamageIndicatorAdd( int damage, const vec3_t dir ) {
 	Matrix3_FromAngles( playerAngles, playerAxis );
 
 	if( cg_damage_indicator_time->value < 0 ) {
-		trap_Cvar_SetValue( "cg_damage_indicator_time", 0 );
+		Cvar_SetValue( "cg_damage_indicator_time", 0 );
 	}
 
 	Vector4Set( blends, 0, 0, 0, 0 );

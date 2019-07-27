@@ -34,6 +34,8 @@ end of unit intermissions
 */
 
 #include "cg_local.h"
+#include "../client/client.h"
+#include "../ref_gl/r_frontend.h"
 
 vrect_t scr_vrect;
 
@@ -135,7 +137,7 @@ static void CG_DrawCenterString( void ) {
 		y = 48 * cgs.vidHeight / 600;
 	}
 
-	trap_SCR_DrawMultilineString( cgs.vidWidth / 2, y, helpmessage, ALIGN_CENTER_TOP, cgs.vidWidth, 0, font, colorWhite );
+	SCR_DrawMultilineString( cgs.vidWidth / 2, y, helpmessage, ALIGN_CENTER_TOP, cgs.vidWidth, 0, font, colorWhite );
 }
 
 //=============================================================================
@@ -165,11 +167,11 @@ void CG_ScreenCrosshairDamageUpdate( void ) {
 */
 void CG_RefreshQuickMenu( void ) {
 	if( !cg.quickmenu[0] ) {
-		trap_Cmd_ExecuteText( EXEC_APPEND, "menu_quick 0\n" );
+		Cbuf_ExecuteText( EXEC_APPEND, "menu_quick 0\n" );
 		return;
 	}
 
-	trap_Cmd_ExecuteText( EXEC_APPEND, va( "menu_quick game_quick left %d %s\n", cg.quickmenu_left ? 1 : 0, cg.quickmenu ) );
+	Cbuf_ExecuteText( EXEC_APPEND, va( "menu_quick game_quick left %d %s\n", cg.quickmenu_left ? 1 : 0, cg.quickmenu ) );
 }
 
 /*
@@ -177,7 +179,7 @@ void CG_RefreshQuickMenu( void ) {
 */
 void CG_ShowQuickMenu( int state ) {
 	if( !state ) {
-		trap_SCR_EnableQuickMenu( false );
+		SCR_EnableQuickMenu( false );
 		return;
 	}
 
@@ -187,7 +189,7 @@ void CG_ShowQuickMenu( int state ) {
 		CG_RefreshQuickMenu();
 	}
 
-	trap_SCR_EnableQuickMenu( true );
+	SCR_EnableQuickMenu( true );
 }
 
 //=============================================================================
@@ -202,9 +204,9 @@ void CG_CalcVrect( void ) {
 
 	// bound viewsize
 	if( cg_viewSize->integer < 40 ) {
-		trap_Cvar_Set( cg_viewSize->name, "40" );
+		Cvar_Set( cg_viewSize->name, "40" );
 	} else if( cg_viewSize->integer > 100 ) {
-		trap_Cvar_Set( cg_viewSize->name, "100" );
+		Cvar_Set( cg_viewSize->name, "100" );
 	}
 
 	size = cg_viewSize->integer;
@@ -231,7 +233,7 @@ void CG_CalcVrect( void ) {
 * Keybinding command
 */
 static void CG_SizeUp_f( void ) {
-	trap_Cvar_SetValue( cg_viewSize->name, cg_viewSize->integer + 10 );
+	Cvar_SetValue( cg_viewSize->name, cg_viewSize->integer + 10 );
 }
 
 /*
@@ -240,7 +242,7 @@ static void CG_SizeUp_f( void ) {
 * Keybinding command
 */
 static void CG_SizeDown_f( void ) {
-	trap_Cvar_SetValue( cg_viewSize->name, cg_viewSize->integer - 10 );
+	Cvar_SetValue( cg_viewSize->name, cg_viewSize->integer - 10 );
 }
 
 /*
@@ -267,68 +269,68 @@ static void CG_QuickMenuOff_f( void ) {
 * CG_ScreenInit
 */
 void CG_ScreenInit( void ) {
-	cg_viewSize =       trap_Cvar_Get( "cg_viewSize", "100", CVAR_ARCHIVE );
-	cg_showFPS =        trap_Cvar_Get( "cg_showFPS", "0", CVAR_ARCHIVE );
-	cg_showHUD =        trap_Cvar_Get( "cg_showHUD", "1", CVAR_ARCHIVE );
-	cg_draw2D =     trap_Cvar_Get( "cg_draw2D", "1", 0 );
-	cg_centerTime =     trap_Cvar_Get( "cg_centerTime", "2.5", 0 );
-	cg_weaponlist =     trap_Cvar_Get( "cg_weaponlist", "1", CVAR_ARCHIVE );
+	cg_viewSize =       Cvar_Get( "cg_viewSize", "100", CVAR_ARCHIVE );
+	cg_showFPS =        Cvar_Get( "cg_showFPS", "0", CVAR_ARCHIVE );
+	cg_showHUD =        Cvar_Get( "cg_showHUD", "1", CVAR_ARCHIVE );
+	cg_draw2D =     Cvar_Get( "cg_draw2D", "1", 0 );
+	cg_centerTime =     Cvar_Get( "cg_centerTime", "2.5", 0 );
+	cg_weaponlist =     Cvar_Get( "cg_weaponlist", "1", CVAR_ARCHIVE );
 
-	cg_crosshair =      trap_Cvar_Get( "cg_crosshair", "1", CVAR_ARCHIVE );
-	cg_crosshair_size = trap_Cvar_Get( "cg_crosshair_size", "24", CVAR_ARCHIVE );
-	cg_crosshair_color =    trap_Cvar_Get( "cg_crosshair_color", "255 255 255", CVAR_ARCHIVE );
-	cg_crosshair_font =     trap_Cvar_Get( "cg_crosshair_font", "Warsow Crosshairs", CVAR_ARCHIVE );
-	cg_crosshair_damage_color = trap_Cvar_Get( "cg_crosshair_damage_color", "255 0 0", CVAR_ARCHIVE );
+	cg_crosshair =      Cvar_Get( "cg_crosshair", "1", CVAR_ARCHIVE );
+	cg_crosshair_size = Cvar_Get( "cg_crosshair_size", "24", CVAR_ARCHIVE );
+	cg_crosshair_color =    Cvar_Get( "cg_crosshair_color", "255 255 255", CVAR_ARCHIVE );
+	cg_crosshair_font =     Cvar_Get( "cg_crosshair_font", "Warsow Crosshairs", CVAR_ARCHIVE );
+	cg_crosshair_damage_color = Cvar_Get( "cg_crosshair_damage_color", "255 0 0", CVAR_ARCHIVE );
 	cg_crosshair_color->modified = true;
 	cg_crosshair_damage_color->modified = false;
 
-	cg_crosshair_strong =       trap_Cvar_Get( "cg_crosshair_strong", "0", CVAR_ARCHIVE );
-	cg_crosshair_strong_size =  trap_Cvar_Get( "cg_crosshair_strong_size", "24", CVAR_ARCHIVE );
-	cg_crosshair_strong_color = trap_Cvar_Get( "cg_crosshair_strong_color", "255 255 255", CVAR_ARCHIVE );
+	cg_crosshair_strong =       Cvar_Get( "cg_crosshair_strong", "0", CVAR_ARCHIVE );
+	cg_crosshair_strong_size =  Cvar_Get( "cg_crosshair_strong_size", "24", CVAR_ARCHIVE );
+	cg_crosshair_strong_color = Cvar_Get( "cg_crosshair_strong_color", "255 255 255", CVAR_ARCHIVE );
 	cg_crosshair_strong_color->modified = true;
 
-	cg_clientHUD =      trap_Cvar_Get( "cg_clientHUD", "", CVAR_ARCHIVE );
-	cg_specHUD =        trap_Cvar_Get( "cg_specHUD", "", CVAR_ARCHIVE );
-	cg_showTimer =      trap_Cvar_Get( "cg_showTimer", "1", CVAR_ARCHIVE );
-	cg_showSpeed =      trap_Cvar_Get( "cg_showSpeed", "1", CVAR_ARCHIVE );
-	cg_showPickup =     trap_Cvar_Get( "cg_showPickup", "1", CVAR_ARCHIVE );
-	cg_showPointedPlayer =  trap_Cvar_Get( "cg_showPointedPlayer", "1", CVAR_ARCHIVE );
-	cg_showTeamLocations =  trap_Cvar_Get( "cg_showTeamLocations", "1", CVAR_ARCHIVE );
-	cg_showViewBlends = trap_Cvar_Get( "cg_showViewBlends", "1", CVAR_ARCHIVE );
-	cg_showAwards =     trap_Cvar_Get( "cg_showAwards", "1", CVAR_ARCHIVE );
-	cg_showZoomEffect = trap_Cvar_Get( "cg_showZoomEffect", "1", CVAR_ARCHIVE );
-	cg_showCaptureAreas = trap_Cvar_Get( "cg_showCaptureAreas", "1", CVAR_ARCHIVE );
+	cg_clientHUD =      Cvar_Get( "cg_clientHUD", "", CVAR_ARCHIVE );
+	cg_specHUD =        Cvar_Get( "cg_specHUD", "", CVAR_ARCHIVE );
+	cg_showTimer =      Cvar_Get( "cg_showTimer", "1", CVAR_ARCHIVE );
+	cg_showSpeed =      Cvar_Get( "cg_showSpeed", "1", CVAR_ARCHIVE );
+	cg_showPickup =     Cvar_Get( "cg_showPickup", "1", CVAR_ARCHIVE );
+	cg_showPointedPlayer =  Cvar_Get( "cg_showPointedPlayer", "1", CVAR_ARCHIVE );
+	cg_showTeamLocations =  Cvar_Get( "cg_showTeamLocations", "1", CVAR_ARCHIVE );
+	cg_showViewBlends = Cvar_Get( "cg_showViewBlends", "1", CVAR_ARCHIVE );
+	cg_showAwards =     Cvar_Get( "cg_showAwards", "1", CVAR_ARCHIVE );
+	cg_showZoomEffect = Cvar_Get( "cg_showZoomEffect", "1", CVAR_ARCHIVE );
+	cg_showCaptureAreas = Cvar_Get( "cg_showCaptureAreas", "1", CVAR_ARCHIVE );
 
-	cg_showPlayerNames =        trap_Cvar_Get( "cg_showPlayerNames", "1", CVAR_ARCHIVE );
-	cg_showPlayerNames_alpha =  trap_Cvar_Get( "cg_showPlayerNames_alpha", "0.4", CVAR_ARCHIVE );
-	cg_showPlayerNames_zfar =   trap_Cvar_Get( "cg_showPlayerNames_zfar", "1024", CVAR_ARCHIVE );
-	cg_showPlayerNames_barWidth =   trap_Cvar_Get( "cg_showPlayerNames_barWidth", "8", CVAR_ARCHIVE );
-	cg_showTeamMates =      trap_Cvar_Get( "cg_showTeamMates", "1", CVAR_ARCHIVE );
+	cg_showPlayerNames =        Cvar_Get( "cg_showPlayerNames", "1", CVAR_ARCHIVE );
+	cg_showPlayerNames_alpha =  Cvar_Get( "cg_showPlayerNames_alpha", "0.4", CVAR_ARCHIVE );
+	cg_showPlayerNames_zfar =   Cvar_Get( "cg_showPlayerNames_zfar", "1024", CVAR_ARCHIVE );
+	cg_showPlayerNames_barWidth =   Cvar_Get( "cg_showPlayerNames_barWidth", "8", CVAR_ARCHIVE );
+	cg_showTeamMates =      Cvar_Get( "cg_showTeamMates", "1", CVAR_ARCHIVE );
 
-	cg_showPressedKeys = trap_Cvar_Get( "cg_showPressedKeys", "0", CVAR_ARCHIVE );
-	cg_showChasers = trap_Cvar_Get( "cg_showChasers", "1", CVAR_ARCHIVE );
+	cg_showPressedKeys = Cvar_Get( "cg_showPressedKeys", "0", CVAR_ARCHIVE );
+	cg_showChasers = Cvar_Get( "cg_showChasers", "1", CVAR_ARCHIVE );
 
-	cg_scoreboardFontFamily = trap_Cvar_Get( "cg_scoreboardFontFamily", DEFAULT_SCOREBOARD_FONT_FAMILY, CVAR_ARCHIVE );
-	cg_scoreboardMonoFontFamily = trap_Cvar_Get( "cg_scoreboardMonoFontFamily", DEFAULT_SCOREBOARD_MONO_FONT_FAMILY, CVAR_ARCHIVE );
-	cg_scoreboardTitleFontFamily = trap_Cvar_Get( "cg_scoreboardTitleFontFamily", DEFAULT_SCOREBOARD_TITLE_FONT_FAMILY, CVAR_ARCHIVE );
-	cg_scoreboardFontSize = trap_Cvar_Get( "cg_scoreboardFontSize", STR_TOSTR( DEFAULT_SCOREBOARD_FONT_SIZE ), CVAR_ARCHIVE );
-	cg_scoreboardTitleFontSize = trap_Cvar_Get( "cg_scoreboardTitleFontSize", STR_TOSTR( DEFAULT_SCOREBOARD_TITLE_FONT_SIZE ), CVAR_ARCHIVE );
-	cg_scoreboardWidthScale = trap_Cvar_Get( "cg_scoreboardWidthScale", "1.0", CVAR_ARCHIVE );
-	cg_scoreboardStats =    trap_Cvar_Get( "cg_scoreboardStats", "1", CVAR_ARCHIVE );
+	cg_scoreboardFontFamily = Cvar_Get( "cg_scoreboardFontFamily", DEFAULT_SCOREBOARD_FONT_FAMILY, CVAR_ARCHIVE );
+	cg_scoreboardMonoFontFamily = Cvar_Get( "cg_scoreboardMonoFontFamily", DEFAULT_SCOREBOARD_MONO_FONT_FAMILY, CVAR_ARCHIVE );
+	cg_scoreboardTitleFontFamily = Cvar_Get( "cg_scoreboardTitleFontFamily", DEFAULT_SCOREBOARD_TITLE_FONT_FAMILY, CVAR_ARCHIVE );
+	cg_scoreboardFontSize = Cvar_Get( "cg_scoreboardFontSize", STR_TOSTR( DEFAULT_SCOREBOARD_FONT_SIZE ), CVAR_ARCHIVE );
+	cg_scoreboardTitleFontSize = Cvar_Get( "cg_scoreboardTitleFontSize", STR_TOSTR( DEFAULT_SCOREBOARD_TITLE_FONT_SIZE ), CVAR_ARCHIVE );
+	cg_scoreboardWidthScale = Cvar_Get( "cg_scoreboardWidthScale", "1.0", CVAR_ARCHIVE );
+	cg_scoreboardStats =    Cvar_Get( "cg_scoreboardStats", "1", CVAR_ARCHIVE );
 
 	// wsw : hud debug prints
-	cg_debugHUD =           trap_Cvar_Get( "cg_debugHUD", "0", 0 );
+	cg_debugHUD =           Cvar_Get( "cg_debugHUD", "0", 0 );
 
 	//
 	// register our commands
 	//
-	trap_Cmd_AddCommand( "sizeup", CG_SizeUp_f );
-	trap_Cmd_AddCommand( "sizedown", CG_SizeDown_f );
-	trap_Cmd_AddCommand( "help_hud", Cmd_CG_PrintHudHelp_f );
-	trap_Cmd_AddCommand( "gamemenu", CG_GameMenu_f );
+	Cmd_AddCommand( "sizeup", CG_SizeUp_f );
+	Cmd_AddCommand( "sizedown", CG_SizeDown_f );
+	Cmd_AddCommand( "help_hud", Cmd_CG_PrintHudHelp_f );
+	Cmd_AddCommand( "gamemenu", CG_GameMenu_f );
 
-	trap_Cmd_AddCommand( "+quickmenu", &CG_QuickMenuOn_f );
-	trap_Cmd_AddCommand( "-quickmenu", &CG_QuickMenuOff_f );
+	Cmd_AddCommand( "+quickmenu", &CG_QuickMenuOn_f );
+	Cmd_AddCommand( "-quickmenu", &CG_QuickMenuOff_f );
 
 	int i;
 	for( i = 0; i < TOUCHPAD_COUNT; ++i )
@@ -339,13 +341,13 @@ void CG_ScreenInit( void ) {
 * CG_ScreenShutdown
 */
 void CG_ScreenShutdown( void ) {
-	trap_Cmd_RemoveCommand( "gamemenu" );
-	trap_Cmd_RemoveCommand( "sizeup" );
-	trap_Cmd_RemoveCommand( "sizedown" );
-	trap_Cmd_RemoveCommand( "help_hud" );
+	Cmd_RemoveCommand( "gamemenu" );
+	Cmd_RemoveCommand( "sizeup" );
+	Cmd_RemoveCommand( "sizedown" );
+	Cmd_RemoveCommand( "help_hud" );
 
-	trap_Cmd_RemoveCommand( "+quickmenu" );
-	trap_Cmd_RemoveCommand( "-quickmenu" );
+	Cmd_RemoveCommand( "+quickmenu" );
+	Cmd_RemoveCommand( "-quickmenu" );
 }
 
 
@@ -382,13 +384,13 @@ void CG_DrawNet( int x, int y, int w, int h, int align, vec4_t color ) {
 		return;
 	}
 
-	trap_NET_GetCurrentState( &incomingAcknowledged, &outgoingSequence, NULL );
+	NET_GetCurrentState( &incomingAcknowledged, &outgoingSequence, NULL );
 	if( outgoingSequence - incomingAcknowledged < CMD_BACKUP - 1 ) {
 		return;
 	}
 	x = CG_HorizontalAlignForWidth( x, align, w );
 	y = CG_VerticalAlignForHeight( y, align, h );
-	trap_R_DrawStretchPic( x, y, w, h, 0, 0, 1, 1, color, CG_MediaShader( cgs.media.shaderNet ) );
+	RF_DrawStretchPic( x, y, w, h, 0, 0, 1, 1, color, CG_MediaShader( cgs.media.shaderNet ) );
 }
 
 /*
@@ -406,10 +408,10 @@ static int CG_CrosshairDimensions( int x, int y, int size, int align, int *sx, i
 * CG_DrawCrosshairChar
 */
 static void CG_DrawCrosshairChar( int x, int y, int size, int num, vec_t *color ) {
-	struct qfontface_s *font = trap_SCR_RegisterSpecialFont( cg_crosshair_font->string, QFONT_STYLE_NONE, size );
+	struct qfontface_s *font = SCR_RegisterSpecialFont( cg_crosshair_font->string, QFONT_STYLE_NONE, size );
 	if( !font ) {
-		trap_Cvar_Set( cg_crosshair_font->name, cg_crosshair_font->dvalue );
-		font = trap_SCR_RegisterSpecialFont( cg_crosshair_font->string, QFONT_STYLE_NONE, size );
+		Cvar_Set( cg_crosshair_font->name, cg_crosshair_font->dvalue );
+		font = SCR_RegisterSpecialFont( cg_crosshair_font->string, QFONT_STYLE_NONE, size );
 	}
 
 	wchar_t blackChar, colorChar;
@@ -421,8 +423,8 @@ static void CG_DrawCrosshairChar( int x, int y, int size, int num, vec_t *color 
 		colorChar = '!';
 	}
 
-	trap_SCR_DrawRawChar( x, y, blackChar, font, colorBlack );
-	trap_SCR_DrawRawChar( x, y, colorChar, font, color );
+	SCR_DrawRawChar( x, y, blackChar, font, colorBlack );
+	SCR_DrawRawChar( x, y, colorChar, font, color );
 }
 
 /*
@@ -436,16 +438,16 @@ void CG_DrawCrosshair( int x, int y, int align ) {
 
 	if( cg_crosshair->modified ) {
 		if( cg_crosshair->integer > 26 || cg_crosshair->integer < 0 ) {
-			trap_Cvar_Set( cg_crosshair->name, "0" );
+			Cvar_Set( cg_crosshair->name, "0" );
 		}
 		cg_crosshair->modified = false;
 	}
 
 	if( cg_crosshair_size->modified ) {
 		if( cg_crosshair_size->integer < 0 ) {
-			trap_Cvar_Set( cg_crosshair_size->name, "0" );
+			Cvar_Set( cg_crosshair_size->name, "0" );
 		} else if( cg_crosshair_size->integer > 64 ) {
-			trap_Cvar_Set( cg_crosshair_size->name, "64" );
+			Cvar_Set( cg_crosshair_size->name, "64" );
 		}
 		cg_crosshair_size->modified = false;
 	}
@@ -472,16 +474,16 @@ void CG_DrawCrosshair( int x, int y, int align ) {
 
 	if( cg_crosshair_strong->modified ) {
 		if( cg_crosshair_strong->integer > 26 || cg_crosshair_strong->integer < 0 ) {
-			trap_Cvar_Set( cg_crosshair_strong->name, "0" );
+			Cvar_Set( cg_crosshair_strong->name, "0" );
 		}
 		cg_crosshair_strong->modified = false;
 	}
 
 	if( cg_crosshair_strong_size->modified ) {
 		if( cg_crosshair_strong_size->integer < 0 ) {
-			trap_Cvar_Set( cg_crosshair_strong_size->name, "0" );
+			Cvar_Set( cg_crosshair_strong_size->name, "0" );
 		} else if( cg_crosshair_strong_size->integer > 64 ) {
-			trap_Cvar_Set( cg_crosshair_strong_size->name, "64" );
+			Cvar_Set( cg_crosshair_strong_size->name, "64" );
 		}
 		cg_crosshair_strong_size->modified = false;
 	}
@@ -523,7 +525,7 @@ void CG_DrawKeyState( int x, int y, int w, int h, int align, const char *key ) {
 	vec4_t color;
 
 	if( !cg_showPressedKeys->integer && !cgs.demoTutorial &&
-		( !GS_TutorialGametype() || !( trap_IN_SupportedDevices() & IN_DEVICE_KEYBOARD ) ) ) {
+		( !GS_TutorialGametype() || !( IN_SupportedDevices() & IN_DEVICE_KEYBOARD ) ) ) {
 		return;
 	}
 
@@ -549,7 +551,7 @@ void CG_DrawKeyState( int x, int y, int w, int h, int align, const char *key ) {
 		color[3] = 0.5f;
 	}
 
-	trap_R_DrawStretchPic( x, y, w, h, 0, 0, 1, 1, color, CG_MediaShader( cgs.media.shaderKeyIcon[i] ) );
+	RF_DrawStretchPic( x, y, w, h, 0, 0, 1, 1, color, CG_MediaShader( cgs.media.shaderKeyIcon[i] ) );
 }
 
 /*
@@ -614,7 +616,7 @@ void CG_DrawClock( int x, int y, int align, struct qfontface_s *font, vec4_t col
 		Q_snprintfz( string, sizeof( string ), "%02i:%02i", minutes, (int)seconds );
 	}
 
-	trap_SCR_DrawString( x, y, align, string, font, color );
+	SCR_DrawString( x, y, align, string, font, color );
 }
 
 /*
@@ -757,12 +759,12 @@ void CG_DrawPlayerNames( struct qfontface_s *font, vec4_t color ) {
 		VectorSet( drawOrigin, cent->ent.origin[0], cent->ent.origin[1], cent->ent.origin[2] + playerbox_stand_maxs[2] + 16 );
 
 		// find the 3d point in 2d screen
-		trap_R_TransformVectorToScreen( &cg.view.refdef, drawOrigin, coords );
+		RF_TransformVectorToScreen( &cg.view.refdef, drawOrigin, coords );
 		if( ( coords[0] < 0 || coords[0] > cgs.vidWidth ) || ( coords[1] < 0 || coords[1] > cgs.vidHeight ) ) {
 			continue;
 		}
 
-		trap_SCR_DrawString( coords[0], coords[1], ALIGN_CENTER_BOTTOM, cgs.clientInfo[i].name, font, tmpcolor );
+		SCR_DrawString( coords[0], coords[1], ALIGN_CENTER_BOTTOM, cgs.clientInfo[i].name, font, tmpcolor );
 
 		// if not the pointed player we are done
 		if( cent->current.number != cg.pointedNum ) {
@@ -775,8 +777,8 @@ void CG_DrawPlayerNames( struct qfontface_s *font, vec4_t color ) {
 		// pointed player hasn't a health value to be drawn, so skip adding the bars
 		if( pointed_health && cg_showPlayerNames_barWidth->integer > 0 ) {
 			int x, y;
-			int barwidth = trap_SCR_strWidth( "_", font, 0 ) * cg_showPlayerNames_barWidth->integer; // size of 8 characters
-			int barheight = trap_SCR_FontHeight( font ) * 0.25; // quarter of a character height
+			int barwidth = SCR_strWidth( "_", font, 0 ) * cg_showPlayerNames_barWidth->integer; // size of 8 characters
+			int barheight = SCR_FontHeight( font ) * 0.25; // quarter of a character height
 			int barseparator = barheight * 0.333;
 
 			alphagreen[3] = alphared[3] = alphayellow[3] = alphamagenta[3] = alphagrey[3] = tmpcolor[3];
@@ -870,7 +872,7 @@ void CG_DrawTeamMates( void ) {
 		}
 
 		// find the 3d point in 2d screen
-		trap_R_TransformVectorToScreen( &cg.view.refdef, drawOrigin, coords );
+		RF_TransformVectorToScreen( &cg.view.refdef, drawOrigin, coords );
 		if( ( coords[0] < 0 || coords[0] > cgs.vidWidth ) || ( coords[1] < 0 || coords[1] > cgs.vidHeight ) ) {
 			continue;
 		}
@@ -893,7 +895,7 @@ void CG_DrawTeamMates( void ) {
 			media = cgs.media.shaderTeamMateIndicator;
 		}
 
-		trap_R_DrawStretchPic( coords[0], coords[1], pic_size, pic_size, 0, 0, 1, 1, color, CG_MediaShader( media ) );
+		RF_DrawStretchPic( coords[0], coords[1], pic_size, pic_size, 0, 0, 1, 1, color, CG_MediaShader( media ) );
 	}
 }
 
@@ -934,7 +936,7 @@ void CG_DrawTeamInfo( int x, int y, int align, struct qfontface_s *font, vec4_t 
 		return;
 	}
 
-	height = trap_SCR_FontHeight( font );
+	height = SCR_FontHeight( font );
 
 	switch( xalign ) {
 		case 0:
@@ -1051,7 +1053,7 @@ void CG_DrawTeamInfo( int x, int y, int align, struct qfontface_s *font, vec4_t 
 					 ( health < 25 ) ? S_COLOR_RED : "", health, S_COLOR_WHITE, armor, S_COLOR_WHITE );
 
 		// draw the head-icon in the case this player has one
-		trap_SCR_DrawString( x, y, xalign, string, font, color );
+		SCR_DrawString( x, y, xalign, string, font, color );
 
 		y += height;
 	}
@@ -1063,13 +1065,13 @@ void CG_DrawTeamInfo( int x, int y, int align, struct qfontface_s *font, vec4_t 
 void CG_DrawRSpeeds( int x, int y, int align, struct qfontface_s *font, vec4_t color ) {
 	char msg[1024];
 
-	trap_R_GetSpeedsMessage( msg, sizeof( msg ) );
+	RF_GetSpeedsMessage( msg, sizeof( msg ) );
 
 	if( msg[0] ) {
 		int height;
 		const char *p, *start, *end;
 
-		height = trap_SCR_FontHeight( font );
+		height = SCR_FontHeight( font );
 
 		p = start = msg;
 		do {
@@ -1078,7 +1080,7 @@ void CG_DrawRSpeeds( int x, int y, int align, struct qfontface_s *font, vec4_t c
 				msg[end - start] = '\0';
 			}
 
-			trap_SCR_DrawString( x, y, align,
+			SCR_DrawString( x, y, align,
 								 p, font, color );
 			y += height;
 
@@ -1136,7 +1138,7 @@ static void CG_InGameMenu( void ) {
 				 TEAM_ALPHA, TEAM_BETA
 				 );
 
-	trap_Cmd_ExecuteText( EXEC_NOW, menuparms );
+	Cbuf_ExecuteText( EXEC_NOW, menuparms );
 }
 
 /*
@@ -1144,13 +1146,13 @@ static void CG_InGameMenu( void ) {
 */
 void CG_GameMenu_f( void ) {
 	if( cgs.demoPlaying ) {
-		trap_Cmd_ExecuteText( EXEC_NOW, "menu_open demoplay\n" );
+		Cbuf_ExecuteText( EXEC_NOW, "menu_open demoplay\n" );
 		return;
 	}
 
 	// if the menu is up, close it
 	if( CG_IsScoreboardShown() ) {
-		trap_Cmd_ExecuteText( EXEC_NOW, "cmd putaway\n" );
+		Cbuf_ExecuteText( EXEC_NOW, "cmd putaway\n" );
 	}
 
 	CG_InGameMenu();
@@ -1176,12 +1178,12 @@ void CG_DrawLoading( void ) {
 	float scale = cgs.vidHeight / 1080.0f;
 
 	const vec4_t color = { 22.0f / 255.0f, 20.0f / 255.0f, 28.0f / 255.0f, 1.0f };
-	trap_R_DrawStretchPic( 0, 0, cgs.vidWidth, cgs.vidHeight, 0.0f, 0.0f, 1.0f, 1.0f, color, cgs.shaderWhite );
-	trap_R_DrawStretchPic( cgs.vidWidth / 2 - ( int )( 256 * scale ), cgs.vidHeight / 2 - ( int )( 64 * scale ),
-						   512 * scale, 128 * scale, 0.0f, 0.0f, 1.0f, 1.0f, colorWhite, trap_R_RegisterPic( UI_SHADER_LOADINGLOGO ) );
+	RF_DrawStretchPic( 0, 0, cgs.vidWidth, cgs.vidHeight, 0.0f, 0.0f, 1.0f, 1.0f, color, cgs.shaderWhite );
+	RF_DrawStretchPic( cgs.vidWidth / 2 - ( int )( 256 * scale ), cgs.vidHeight / 2 - ( int )( 64 * scale ),
+						   512 * scale, 128 * scale, 0.0f, 0.0f, 1.0f, 1.0f, colorWhite, R_RegisterPic( UI_SHADER_LOADINGLOGO ) );
 
 	if( cgs.precacheCount && cgs.precacheTotal ) {
-		struct shader_s *shader = trap_R_RegisterPic( UI_SHADER_LOADINGBAR );
+		struct shader_s *shader = R_RegisterPic( UI_SHADER_LOADINGBAR );
 		int width = 480 * scale;
 		int height = 32 * scale;
 		float percent = ( ( float )cgs.precacheCount / ( float )cgs.precacheTotal );
@@ -1189,11 +1191,11 @@ void CG_DrawLoading( void ) {
 		int x = ( cgs.vidWidth - width ) / 2;
 		int y = cgs.vidHeight / 2 + ( int )( 32 * scale );
 
-		trap_R_DrawStretchPic( x, y, height, height, 0.0f, 0.0f, 0.5f, 0.5f, colorWhite, shader );
-		trap_R_DrawStretchPic( x + height, y, width - height * 2, height, 0.5f, 0.0f, 0.5f, 0.5f, colorWhite, shader );
-		trap_R_DrawStretchPic( x + width - height, y, height, height, 0.5f, 0.0f, 1.0f, 0.5f, colorWhite, shader );
-		trap_R_DrawStretchPic( x + height / 2, y, barWidth, height, 0.25f, 0.5f, 0.25f, 1.0f, colorWhite, shader );
-		trap_R_DrawStretchPic( x + barWidth, y, height, height, 0.5f, 0.5f, 1.0f, 1.0f, colorWhite, shader );
+		RF_DrawStretchPic( x, y, height, height, 0.0f, 0.0f, 0.5f, 0.5f, colorWhite, shader );
+		RF_DrawStretchPic( x + height, y, width - height * 2, height, 0.5f, 0.0f, 0.5f, 0.5f, colorWhite, shader );
+		RF_DrawStretchPic( x + width - height, y, height, height, 0.5f, 0.0f, 1.0f, 0.5f, colorWhite, shader );
+		RF_DrawStretchPic( x + height / 2, y, barWidth, height, 0.25f, 0.5f, 0.25f, 1.0f, colorWhite, shader );
+		RF_DrawStretchPic( x + barWidth, y, height, height, 0.5f, 0.5f, 1.0f, 1.0f, colorWhite, shader );
 	}
 }
 
@@ -1211,7 +1213,7 @@ void CG_LoadingString( const char *str ) {
 * Stop accepting new precaches after the timelimit for this frame has been reached.
 */
 bool CG_LoadingItemName( const char *str ) {
-	if( cgs.precacheCount > cgs.precacheStart && ( trap_Milliseconds() > cgs.precacheStartMsec + 33 ) ) {
+	if( cgs.precacheCount > cgs.precacheStart && ( Sys_Milliseconds() > cgs.precacheStartMsec + 33 ) ) {
 		return false;
 	}
 	cgs.precacheCount++;
@@ -1230,7 +1232,7 @@ static void CG_TileClearRect( int x, int y, int w, int h, struct shader_s *shade
 	iw = 1.0f / 64.0;
 	ih = 1.0f / 64.0;
 
-	trap_R_DrawStretchPic( x, y, w, h, x * iw, y * ih, ( x + w ) * iw, ( y + h ) * ih, colorWhite, shader );
+	RF_DrawStretchPic( x, y, w, h, x * iw, y * ih, ( x + w ) * iw, ( y + h ) * ih, colorWhite, shader );
 }
 
 /*
@@ -1354,7 +1356,7 @@ static void CG_SCRDrawViewBlend( void ) {
 		return;
 	}
 
-	trap_R_DrawStretchPic( 0, 0, cgs.vidWidth, cgs.vidHeight, 0, 0, 1, 1, colorblend, cgs.shaderWhite );
+	RF_DrawStretchPic( 0, 0, cgs.vidWidth, cgs.vidHeight, 0, 0, 1, 1, colorblend, cgs.shaderWhite );
 }
 
 
@@ -1397,8 +1399,8 @@ void CG_Draw2DView( void ) {
 	if( cg.predictedPlayerState.stats[STAT_LAYOUTS] & STAT_LAYOUT_SPECDEAD ) {
 		int barheight = cgs.vidHeight * 0.08;
 		const vec4_t barcolor = { 0.0f, 0.0f, 0.0f, 0.6f };
-		trap_R_DrawStretchPic( 0, 0, cgs.vidWidth, barheight, 0, 0, 1, 1, barcolor, cgs.shaderWhite );
-		trap_R_DrawStretchPic( 0, cgs.vidHeight - barheight, cgs.vidWidth, barheight, 0, 0, 1, 1, barcolor, cgs.shaderWhite );
+		RF_DrawStretchPic( 0, 0, cgs.vidWidth, barheight, 0, 0, 1, 1, barcolor, cgs.shaderWhite );
+		RF_DrawStretchPic( 0, cgs.vidHeight - barheight, cgs.vidWidth, barheight, 0, 0, 1, 1, barcolor, cgs.shaderWhite );
 	}
 
 	if( cg.motd && ( cg.time > cg.motd_time ) ) {
@@ -1413,7 +1415,7 @@ void CG_Draw2DView( void ) {
 	CG_CheckDamageCrosshair();
 
 	scr_centertime_off -= cg.frameTime;
-	if( !( ( trap_IN_SupportedDevices() & IN_DEVICE_SOFTKEYBOARD ) && ( int )trap_Cvar_Value( "con_messageMode" ) ) ) {
+	if( !( ( IN_SupportedDevices() & IN_DEVICE_SOFTKEYBOARD ) && ( int )Cvar_Value( "con_messageMode" ) ) ) {
 		if( CG_IsScoreboardShown() ) {
 			CG_DrawScoreboard();
 		} else if( scr_centertime_off > 0 ) {

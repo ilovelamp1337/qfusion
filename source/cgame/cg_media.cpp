@@ -19,6 +19,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #include "cg_local.h"
+#include "../client/snd_public.h"
+#include "../ref_gl/r_frontend.h"
+#include "../qcommon/qcommon.h"
+#include "../client/client.h"
 
 cgs_media_handle_t *sfx_headnode;
 
@@ -40,7 +44,7 @@ static cgs_media_handle_t *CG_RegisterMediaSfx( const char *name, bool precache 
 	sfx_headnode = mediasfx;
 
 	if( precache ) {
-		mediasfx->data = ( void * )trap_S_RegisterSound( mediasfx->name );
+		mediasfx->data = ( void * )SoundSystem::Instance()->RegisterSound( mediasfx->name );
 	}
 
 	return mediasfx;
@@ -51,7 +55,7 @@ static cgs_media_handle_t *CG_RegisterMediaSfx( const char *name, bool precache 
 */
 struct sfx_s *CG_MediaSfx( cgs_media_handle_t *mediasfx ) {
 	if( !mediasfx->data ) {
-		mediasfx->data = ( void * )trap_S_RegisterSound( mediasfx->name );
+		mediasfx->data = ( void * )SoundSystem::Instance()->RegisterSound( mediasfx->name );
 	}
 	return ( struct sfx_s * )mediasfx->data;
 }
@@ -145,10 +149,10 @@ cgs_media_handle_t *model_headnode;
 struct model_s *CG_RegisterModel( const char *name ) {
 	struct model_s *model;
 
-	model = trap_R_RegisterModel( name );
+	model = R_RegisterModel( name );
 
 	// precache bones
-	if( trap_R_SkeletalGetNumBones( model, NULL ) ) {
+	if( R_SkeletalGetNumBones( model, NULL ) ) {
 		CG_SkeletonForModel( model );
 	}
 
@@ -244,7 +248,7 @@ static cgs_media_handle_t *CG_RegisterMediaShader( const char *name, bool precac
 	shader_headnode = mediashader;
 
 	if( precache ) {
-		mediashader->data = ( void * )trap_R_RegisterPic( mediashader->name );
+		mediashader->data = ( void * )R_RegisterPic( mediashader->name );
 	}
 
 	return mediashader;
@@ -255,7 +259,7 @@ static cgs_media_handle_t *CG_RegisterMediaShader( const char *name, bool precac
 */
 struct shader_s *CG_MediaShader( cgs_media_handle_t *mediashader ) {
 	if( !mediashader->data ) {
-		mediashader->data = ( void * )trap_R_RegisterPic( mediashader->name );
+		mediashader->data = ( void * )R_RegisterPic( mediashader->name );
 	}
 	return ( struct shader_s * )mediashader->data;
 }
@@ -387,9 +391,9 @@ void CG_RegisterLevelMinimap( void ) {
 
 	for( i = 0; i < NUM_IMAGE_EXTENSIONS; i++ ) {
 		Q_snprintfz( minimap, sizeof( minimap ), "minimaps/%s%s", name, IMAGE_EXTENSIONS[i] );
-		file = trap_FS_FOpenFile( minimap, NULL, FS_READ );
+		file = FS_FOpenFile( minimap, NULL, FS_READ );
 		if( file != -1 ) {
-			cgs.shaderMiniMap = trap_R_RegisterPic( minimap );
+			cgs.shaderMiniMap = R_RegisterPic( minimap );
 			break;
 		}
 	}
@@ -399,50 +403,50 @@ void CG_RegisterLevelMinimap( void ) {
 * CG_RegisterFonts
 */
 void CG_RegisterFonts( void ) {
-	cvar_t *con_fontSystemFamily = trap_Cvar_Get( "con_fontSystemFamily", DEFAULT_SYSTEM_FONT_FAMILY, CVAR_ARCHIVE );
-	cvar_t *con_fontSystemMonoFamily = trap_Cvar_Get( "con_fontSystemMonoFamily", DEFAULT_SYSTEM_FONT_FAMILY_MONO, CVAR_ARCHIVE );
-	cvar_t *con_fontSystemSmallSize = trap_Cvar_Get( "con_fontSystemSmallSize", STR_TOSTR( DEFAULT_SYSTEM_FONT_SMALL_SIZE ), CVAR_ARCHIVE );
-	cvar_t *con_fontSystemMediumSize = trap_Cvar_Get( "con_fontSystemMediumSize", STR_TOSTR( DEFAULT_SYSTEM_FONT_MEDIUM_SIZE ), CVAR_ARCHIVE );
-	cvar_t *con_fontSystemBigSize = trap_Cvar_Get( "con_fontSystemBigSize", STR_TOSTR( DEFAULT_SYSTEM_FONT_BIG_SIZE ), CVAR_ARCHIVE );
+	cvar_t *con_fontSystemFamily = Cvar_Get( "con_fontSystemFamily", DEFAULT_SYSTEM_FONT_FAMILY, CVAR_ARCHIVE );
+	cvar_t *con_fontSystemMonoFamily = Cvar_Get( "con_fontSystemMonoFamily", DEFAULT_SYSTEM_FONT_FAMILY_MONO, CVAR_ARCHIVE );
+	cvar_t *con_fontSystemSmallSize = Cvar_Get( "con_fontSystemSmallSize", STR_TOSTR( DEFAULT_SYSTEM_FONT_SMALL_SIZE ), CVAR_ARCHIVE );
+	cvar_t *con_fontSystemMediumSize = Cvar_Get( "con_fontSystemMediumSize", STR_TOSTR( DEFAULT_SYSTEM_FONT_MEDIUM_SIZE ), CVAR_ARCHIVE );
+	cvar_t *con_fontSystemBigSize = Cvar_Get( "con_fontSystemBigSize", STR_TOSTR( DEFAULT_SYSTEM_FONT_BIG_SIZE ), CVAR_ARCHIVE );
 
 	// register system fonts
 	Q_strncpyz( cgs.fontSystemFamily, con_fontSystemFamily->string, sizeof( cgs.fontSystemFamily ) );
 	Q_strncpyz( cgs.fontSystemMonoFamily, con_fontSystemMonoFamily->string, sizeof( cgs.fontSystemMonoFamily ) );
 	if( con_fontSystemSmallSize->integer <= 0 ) {
-		trap_Cvar_Set( con_fontSystemSmallSize->name, con_fontSystemSmallSize->dvalue );
+		Cvar_Set( con_fontSystemSmallSize->name, con_fontSystemSmallSize->dvalue );
 	}
 	if( con_fontSystemMediumSize->integer <= 0 ) {
-		trap_Cvar_Set( con_fontSystemMediumSize->name, con_fontSystemMediumSize->dvalue );
+		Cvar_Set( con_fontSystemMediumSize->name, con_fontSystemMediumSize->dvalue );
 	}
 	if( con_fontSystemBigSize->integer <= 0 ) {
-		trap_Cvar_Set( con_fontSystemBigSize->name, con_fontSystemBigSize->dvalue );
+		Cvar_Set( con_fontSystemBigSize->name, con_fontSystemBigSize->dvalue );
 	}
 
 	float scale = ( float )( cgs.vidHeight ) / 600.0f;
 
 	cgs.fontSystemSmallSize = ceilf( con_fontSystemSmallSize->integer * scale );
-	cgs.fontSystemSmall = trap_SCR_RegisterFont( cgs.fontSystemFamily, QFONT_STYLE_NONE, cgs.fontSystemSmallSize );
+	cgs.fontSystemSmall = SCR_RegisterFont( cgs.fontSystemFamily, QFONT_STYLE_NONE, cgs.fontSystemSmallSize );
 	if( !cgs.fontSystemSmall ) {
 		Q_strncpyz( cgs.fontSystemFamily, DEFAULT_SYSTEM_FONT_FAMILY, sizeof( cgs.fontSystemFamily ) );
 		cgs.fontSystemSmallSize = ceilf( DEFAULT_SYSTEM_FONT_SMALL_SIZE * scale );
 
-		cgs.fontSystemSmall = trap_SCR_RegisterFont( cgs.fontSystemFamily, QFONT_STYLE_NONE, cgs.fontSystemSmallSize );
+		cgs.fontSystemSmall = SCR_RegisterFont( cgs.fontSystemFamily, QFONT_STYLE_NONE, cgs.fontSystemSmallSize );
 		if( !cgs.fontSystemSmall ) {
 			CG_Error( "Couldn't load default font \"%s\"", cgs.fontSystemFamily );
 		}
 	}
 
 	cgs.fontSystemMediumSize = ceilf( con_fontSystemMediumSize->integer * scale );
-	cgs.fontSystemMedium = trap_SCR_RegisterFont( cgs.fontSystemFamily, QFONT_STYLE_NONE, cgs.fontSystemMediumSize );
+	cgs.fontSystemMedium = SCR_RegisterFont( cgs.fontSystemFamily, QFONT_STYLE_NONE, cgs.fontSystemMediumSize );
 	if( !cgs.fontSystemMedium ) {
 		cgs.fontSystemMediumSize = ceilf( DEFAULT_SYSTEM_FONT_MEDIUM_SIZE * scale );
-		cgs.fontSystemMedium = trap_SCR_RegisterFont( cgs.fontSystemFamily, QFONT_STYLE_NONE, cgs.fontSystemMediumSize );
+		cgs.fontSystemMedium = SCR_RegisterFont( cgs.fontSystemFamily, QFONT_STYLE_NONE, cgs.fontSystemMediumSize );
 	}
 
 	cgs.fontSystemBigSize = ceilf( con_fontSystemBigSize->integer * scale );
-	cgs.fontSystemBig = trap_SCR_RegisterFont( cgs.fontSystemFamily, QFONT_STYLE_NONE, cgs.fontSystemBigSize );
+	cgs.fontSystemBig = SCR_RegisterFont( cgs.fontSystemFamily, QFONT_STYLE_NONE, cgs.fontSystemBigSize );
 	if( !cgs.fontSystemBig ) {
 		cgs.fontSystemBigSize = ceilf( DEFAULT_SYSTEM_FONT_BIG_SIZE * scale );
-		cgs.fontSystemBig = trap_SCR_RegisterFont( cgs.fontSystemFamily, QFONT_STYLE_NONE, cgs.fontSystemBigSize );
+		cgs.fontSystemBig = SCR_RegisterFont( cgs.fontSystemFamily, QFONT_STYLE_NONE, cgs.fontSystemBigSize );
 	}
 }

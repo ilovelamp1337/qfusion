@@ -18,6 +18,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #include "cg_local.h"
+#include "../qcommon/qcommon.h"
+#include "../ref_gl/r_frontend.h"
+#include "../client/l10n.h"
+#include "../client/snd_public.h"
+#include "../client/client.h"
 
 cg_static_t cgs;
 cg_state_t cg;
@@ -55,8 +60,6 @@ cvar_t *cg_gunz;
 cvar_t *cg_debugPlayerModels;
 cvar_t *cg_debugWeaponModels;
 cvar_t *cg_gunbob;
-
-cvar_t *developer;
 
 cvar_t *cg_handOffset;
 cvar_t *cg_gun_fov;
@@ -158,39 +161,15 @@ cvar_t *cg_autoRespectMenu;
 
 cvar_t *cg_viewBob;
 
-/*
-* CG_API
-*/
-int CG_API( void ) {
-	return CGAME_API_VERSION;
-}
-
-/*
-* CG_Error
-*/
 void CG_Error( const char *format, ... ) {
-	va_list argptr;
 	char msg[1024];
+	va_list argptr;
 
 	va_start( argptr, format );
 	Q_vsnprintfz( msg, sizeof( msg ), format, argptr );
 	va_end( argptr );
 
-	trap_Error( msg );
-}
-
-/*
-* CG_Printf
-*/
-void CG_Printf( const char *format, ... ) {
-	va_list argptr;
-	char msg[1024];
-
-	va_start( argptr, format );
-	Q_vsnprintfz( msg, sizeof( msg ), format, argptr );
-	va_end( argptr );
-
-	trap_Print( msg );
+	Com_Error( ERR_DROP, "%s\n", msg );
 }
 
 /*
@@ -204,74 +183,9 @@ void CG_LocalPrint( const char *format, ... ) {
 	Q_vsnprintfz( msg, sizeof( msg ), format, argptr );
 	va_end( argptr );
 
-	trap_PrintToLog( msg );
+	Con_PrintSilent( msg );
 
 	CG_StackChatString( &cg.chat, msg );
-}
-
-typedef struct
-{
-	char *buf;
-	size_t buf_size;
-	void *privatep;
-	void ( *done_cb )( int status, const char *resp );
-} cg_asyncrequest_t;
-
-/*
-* CG_AsyncGetRequest_ReadCb
-*/
-static size_t CG_AsyncGetRequest_ReadCb( const void *buf, size_t numb, float percentage,
-										 int status, const char *contentType, void *privatep ) {
-	char *newbuf;
-	cg_asyncrequest_t *req = ( cg_asyncrequest_t * )privatep;
-
-	if( status < 0 || status >= 300 ) {
-		return 0;
-	}
-
-	newbuf = ( char * )CG_Malloc( req->buf_size + numb + 1 );
-	memcpy( newbuf, req->buf, req->buf_size - 1 );
-	memcpy( newbuf + req->buf_size - 1, buf, numb );
-	newbuf[numb] = '\0'; // EOF
-
-	CG_Free( req->buf );
-	req->buf = newbuf;
-	req->buf_size = req->buf_size + numb + 1;
-
-	return numb;
-}
-
-/*
-* CG_AsyncGetRequest_DoneCb
-*/
-static void CG_AsyncGetRequest_DoneCb( int status, const char *contentType, void *privatep ) {
-	cg_asyncrequest_t *req = ( cg_asyncrequest_t * )privatep;
-
-	req->done_cb( status, req->buf );
-
-	CG_Free( req->buf );
-	CG_Free( req );
-}
-
-/*
-* CG_AsyncGetRequest
-*/
-int CG_AsyncGetRequest( const char *resource, void ( *done_cb )( int status, const char *resp ), void *privatep ) {
-	char url[1024];
-	cg_asyncrequest_t *req;
-
-	trap_GetBaseServerURL( url, sizeof( url ) );
-	Q_strncatz( url, resource, sizeof( url ) );
-
-	req = ( cg_asyncrequest_t * )CG_Malloc( sizeof( *req ) );
-	req->buf_size = 1;
-	req->buf = ( char * )CG_Malloc( 1 );
-	*req->buf = '\0';
-	req->privatep = privatep;
-	req->done_cb = done_cb;
-
-	return trap_AsyncStream_PerformRequest( url, "GET", "", 10,
-											CG_AsyncGetRequest_ReadCb, CG_AsyncGetRequest_DoneCb, (void *)req );
 }
 
 /*
@@ -344,19 +258,16 @@ static const char *CG_GS_GetConfigString( int index ) {
 * Give gameshared access to some utilities
 */
 static void CG_InitGameShared( void ) {
-	char cstring[MAX_CONFIGSTRING_CHARS];
-
 	memset( &gs, 0, sizeof( gs_state_t ) );
 	gs.module = GS_MODULE_CGAME;
-	trap_GetConfigString( CS_MAXCLIENTS, cstring, MAX_CONFIGSTRING_CHARS );
-	gs.maxclients = atoi( cstring );
+	gs.maxclients = atoi( cl.configstrings[CS_MAXCLIENTS] );
 	if( gs.maxclients < 1 || gs.maxclients > MAX_CLIENTS ) {
 		gs.maxclients = MAX_CLIENTS;
 	}
 
 	module_PredictedEvent = CG_PredictedEvent;
 	module_Error = CG_Error;
-	module_Printf = CG_Printf;
+	module_Printf = Com_Printf;
 	module_Malloc = CG_GS_Malloc;
 	module_Free = CG_GS_Free;
 	module_Trace = CG_GS_Trace;
@@ -374,7 +285,7 @@ static void CG_InitGameShared( void ) {
 char *_CG_CopyString( const char *in, const char *filename, int fileline ) {
 	char *out;
 
-	out = ( char * )trap_MemAlloc( strlen( in ) + 1, filename, fileline );
+	out = ( char * )CG_MemAlloc( strlen( in ) + 1, filename, fileline );
 	strcpy( out, in );
 	return out;
 }
@@ -385,15 +296,15 @@ char *_CG_CopyString( const char *in, const char *filename, int fileline ) {
 static void CG_InitL10n( void ) {
 	char mapl10n[10 + MAX_CONFIGSTRING_CHARS];
 
-	trap_L10n_ClearDomain();
-	trap_L10n_LoadLangPOFile( "l10n/cgame" );
+	L10n_ClearDomain( CGAME_L10N_DOMAIN );
+	L10n_LoadLangPOFile( CGAME_L10N_DOMAIN, "l10n/cgame" );
 
 	Q_strncpyz( mapl10n, "l10n/", sizeof( mapl10n ) );
 	Q_strncpyz( mapl10n + 5, cgs.configStrings[CS_WORLDMODEL], sizeof( mapl10n ) - 5 );
 	COM_StripExtension( mapl10n );
 
 	if( mapl10n[0] ) {
-		trap_L10n_LoadLangPOFile( mapl10n );
+		L10n_LoadLangPOFile( CGAME_L10N_DOMAIN, mapl10n );
 	}
 }
 
@@ -403,7 +314,7 @@ static void CG_InitL10n( void ) {
 const char *CG_TranslateString( const char *string ) {
 	const char *translation;
 
-	translation = trap_L10n_TranslateString( string );
+	translation = L10n_TranslateString( CGAME_L10N_DOMAIN, string );
 	if( !translation ) {
 		return string;
 	}
@@ -425,9 +336,9 @@ const char *CG_TranslateColoredString( const char *string, char *dst, size_t dst
 	tmp = string;
 	if( Q_GrabCharFromColorString( &tmp, &c, &colorindex ) == GRABCHAR_COLOR ) {
 		// attempt to translate the remaining string
-		l10n = trap_L10n_TranslateString( tmp );
+		l10n = L10n_TranslateString( CGAME_L10N_DOMAIN, tmp );
 	} else {
-		l10n = trap_L10n_TranslateString( string );
+		l10n = L10n_TranslateString( CGAME_L10N_DOMAIN, string );
 	}
 
 	if( l10n ) {
@@ -480,7 +391,7 @@ static void CG_RegisterModels( void ) {
 				return;
 			}
 			CG_LoadingString( name );
-			trap_R_RegisterWorldModel( name );
+			R_RegisterWorldModel( name );
 		}
 
 		CG_LoadingString( "models" );
@@ -575,7 +486,7 @@ static void CG_RegisterSounds( void ) {
 			if( !CG_LoadingItemName( name ) ) {
 				return;
 			}
-			cgs.soundPrecache[i] = trap_S_RegisterSound( name );
+			cgs.soundPrecache[i] = SoundSystem::Instance()->RegisterSound( name );
 		}
 	}
 
@@ -617,9 +528,9 @@ static void CG_RegisterShaders( void ) {
 		}
 
 		if( strstr( name, "correction/" ) ) { // HACK HACK HACK -- for color correction LUTs
-			cgs.imagePrecache[i] = trap_R_RegisterLinearPic( name );
+			cgs.imagePrecache[i] = R_RegisterLinearPic( name );
 		} else {
-			cgs.imagePrecache[i] = trap_R_RegisterPic( name );
+			cgs.imagePrecache[i] = R_RegisterPic( name );
 		}
 	}
 
@@ -660,7 +571,7 @@ static void CG_RegisterSkinFiles( void ) {
 			return;
 		}
 
-		cgs.skinPrecache[i] = trap_R_RegisterSkinFile( name );
+		cgs.skinPrecache[i] = R_RegisterSkinFile( name );
 	}
 
 	cgs.precacheSkinsStart = MAX_SKINFILES;
@@ -719,170 +630,169 @@ static void CG_RegisterLightStyles( void ) {
 * CG_RegisterVariables
 */
 static void CG_RegisterVariables( void ) {
-	cg_predict =        trap_Cvar_Get( "cg_predict", "1", 0 );
-	cg_predict_optimize = trap_Cvar_Get( "cg_predict_optimize", "1", 0 );
-	cg_showMiss =       trap_Cvar_Get( "cg_showMiss", "0", 0 );
+	cg_predict =        Cvar_Get( "cg_predict", "1", 0 );
+	cg_predict_optimize = Cvar_Get( "cg_predict_optimize", "1", 0 );
+	cg_showMiss =       Cvar_Get( "cg_showMiss", "0", 0 );
 
-	cg_debugPlayerModels =  trap_Cvar_Get( "cg_debugPlayerModels", "0", CVAR_CHEAT | CVAR_ARCHIVE );
-	cg_debugWeaponModels =  trap_Cvar_Get( "cg_debugWeaponModels", "0", CVAR_CHEAT | CVAR_ARCHIVE );
+	cg_debugPlayerModels =  Cvar_Get( "cg_debugPlayerModels", "0", CVAR_CHEAT | CVAR_ARCHIVE );
+	cg_debugWeaponModels =  Cvar_Get( "cg_debugWeaponModels", "0", CVAR_CHEAT | CVAR_ARCHIVE );
 
-	cg_model =          trap_Cvar_Get( "model", DEFAULT_PLAYERMODEL, CVAR_USERINFO | CVAR_ARCHIVE );
-	cg_skin =           trap_Cvar_Get( "skin", DEFAULT_PLAYERSKIN, CVAR_USERINFO | CVAR_ARCHIVE );
-	cg_hand =           trap_Cvar_Get( "hand", "0", CVAR_USERINFO | CVAR_ARCHIVE );
-	cg_handicap =       trap_Cvar_Get( "handicap", "0", CVAR_USERINFO | CVAR_ARCHIVE );
-	cg_clan =           trap_Cvar_Get( "clan", "", CVAR_USERINFO | CVAR_ARCHIVE );
+	cg_model =          Cvar_Get( "model", DEFAULT_PLAYERMODEL, CVAR_USERINFO | CVAR_ARCHIVE );
+	cg_skin =           Cvar_Get( "skin", DEFAULT_PLAYERSKIN, CVAR_USERINFO | CVAR_ARCHIVE );
+	cg_hand =           Cvar_Get( "hand", "0", CVAR_USERINFO | CVAR_ARCHIVE );
+	cg_handicap =       Cvar_Get( "handicap", "0", CVAR_USERINFO | CVAR_ARCHIVE );
+	cg_clan =           Cvar_Get( "clan", "", CVAR_USERINFO | CVAR_ARCHIVE );
 	// Should be 1 by default so we don't have to explain every newcomer how to turn it on. They are a majority.
-	cg_movementStyle =  trap_Cvar_Get( "cg_movementStyle", "1", CVAR_USERINFO | CVAR_ARCHIVE );
-	cg_noAutohop =  trap_Cvar_Get( "cg_noAutohop", "0", CVAR_USERINFO | CVAR_ARCHIVE );
-	cg_fov =        trap_Cvar_Get( "fov", "100", CVAR_ARCHIVE );
-	cg_zoomfov =    trap_Cvar_Get( "zoomfov", "30", CVAR_ARCHIVE );
+	cg_movementStyle =  Cvar_Get( "cg_movementStyle", "1", CVAR_USERINFO | CVAR_ARCHIVE );
+	cg_noAutohop =  Cvar_Get( "cg_noAutohop", "0", CVAR_USERINFO | CVAR_ARCHIVE );
+	cg_fov =        Cvar_Get( "fov", "100", CVAR_ARCHIVE );
+	cg_zoomfov =    Cvar_Get( "zoomfov", "30", CVAR_ARCHIVE );
 
-	cg_addDecals =      trap_Cvar_Get( "cg_decals", "1", CVAR_ARCHIVE );
+	cg_addDecals =      Cvar_Get( "cg_decals", "1", CVAR_ARCHIVE );
 
-	//cg_footSteps =	    trap_Cvar_Get( "cg_footSteps", "1", 0 );
+	//cg_footSteps =	    Cvar_Get( "cg_footSteps", "1", 0 );
 
-	cg_flip = trap_Cvar_Get( "cg_flip", "0", CVAR_ARCHIVE );
+	cg_flip = Cvar_Get( "cg_flip", "0", CVAR_ARCHIVE );
 
-	cg_thirdPerson =    trap_Cvar_Get( "cg_thirdPerson", "0", CVAR_CHEAT );
-	cg_thirdPersonAngle =   trap_Cvar_Get( "cg_thirdPersonAngle", "0", 0 );
-	cg_thirdPersonRange =   trap_Cvar_Get( "cg_thirdPersonRange", "90", 0 );
+	cg_thirdPerson =    Cvar_Get( "cg_thirdPerson", "0", CVAR_CHEAT );
+	cg_thirdPersonAngle =   Cvar_Get( "cg_thirdPersonAngle", "0", 0 );
+	cg_thirdPersonRange =   Cvar_Get( "cg_thirdPersonRange", "90", 0 );
 
-	cg_colorCorrection = trap_Cvar_Get( "cg_colorCorrection", "1", CVAR_ARCHIVE );
+	cg_colorCorrection = Cvar_Get( "cg_colorCorrection", "1", CVAR_ARCHIVE );
 
-	cg_gun =        trap_Cvar_Get( "cg_gun", "1", CVAR_ARCHIVE );
-	cg_gunx =       trap_Cvar_Get( "cg_gunx", "0", CVAR_ARCHIVE );
-	cg_guny =       trap_Cvar_Get( "cg_guny", "0", CVAR_ARCHIVE );
-	cg_gunz =       trap_Cvar_Get( "cg_gunz", "0", CVAR_ARCHIVE );
-	cg_gunbob =     trap_Cvar_Get( "cg_gunbob", "1", CVAR_ARCHIVE );
+	cg_gun =        Cvar_Get( "cg_gun", "1", CVAR_ARCHIVE );
+	cg_gunx =       Cvar_Get( "cg_gunx", "0", CVAR_ARCHIVE );
+	cg_guny =       Cvar_Get( "cg_guny", "0", CVAR_ARCHIVE );
+	cg_gunz =       Cvar_Get( "cg_gunz", "0", CVAR_ARCHIVE );
+	cg_gunbob =     Cvar_Get( "cg_gunbob", "1", CVAR_ARCHIVE );
 
-	cg_gun_fov =        trap_Cvar_Get( "cg_gun_fov", "75", CVAR_ARCHIVE );
-	cg_gun_alpha =      trap_Cvar_Get( "cg_gun_alpha", "1", CVAR_ARCHIVE );
-	cg_weaponFlashes =  trap_Cvar_Get( "cg_weaponFlashes", "2", CVAR_ARCHIVE );
+	cg_gun_fov =        Cvar_Get( "cg_gun_fov", "75", CVAR_ARCHIVE );
+	cg_gun_alpha =      Cvar_Get( "cg_gun_alpha", "1", CVAR_ARCHIVE );
+	cg_weaponFlashes =  Cvar_Get( "cg_weaponFlashes", "2", CVAR_ARCHIVE );
 
 	// wsw
-	cg_volume_players = trap_Cvar_Get( "cg_volume_players", "1.0", CVAR_ARCHIVE );
-	cg_volume_effects = trap_Cvar_Get( "cg_volume_effects", "1.0", CVAR_ARCHIVE );
-	cg_volume_announcer =   trap_Cvar_Get( "cg_volume_announcer", "1.0", CVAR_ARCHIVE );
-	cg_volume_hitsound =    trap_Cvar_Get( "cg_volume_hitsound", "1.0", CVAR_ARCHIVE );
-	cg_volume_voicechats =  trap_Cvar_Get( "cg_volume_voicechats", "1.0", CVAR_ARCHIVE );
-	cg_handOffset =     trap_Cvar_Get( "cg_handOffset", "5", CVAR_ARCHIVE );
-	cg_projectileTrail =    trap_Cvar_Get( "cg_projectileTrail", "60", CVAR_ARCHIVE );
-	cg_projectileFireTrail =    trap_Cvar_Get( "cg_projectileFireTrail", "90", CVAR_ARCHIVE );
-	cg_bloodTrail =     trap_Cvar_Get( "cg_bloodTrail", "10", CVAR_ARCHIVE );
-	cg_showBloodTrail = trap_Cvar_Get( "cg_showBloodTrail", "1", CVAR_ARCHIVE );
-	cg_projectileFireTrailAlpha =   trap_Cvar_Get( "cg_projectileFireTrailAlpha", "0.45", CVAR_ARCHIVE );
-	cg_bloodTrailAlpha =    trap_Cvar_Get( "cg_bloodTrailAlpha", "1.0", CVAR_ARCHIVE );
-	cg_heavyRocketExplosions = trap_Cvar_Get( "cg_heavyRocketExplosions", "1", CVAR_ARCHIVE );
-	cg_heavyGrenadeExplosions = trap_Cvar_Get( "cg_heavyGrenadeExplosions", "1", CVAR_ARCHIVE );
-	cg_heavyShockwaveExplosions = trap_Cvar_Get( "cg_heavyShockwaveExplosions", "1", CVAR_ARCHIVE );
-	cg_explosionsRing = trap_Cvar_Get( "cg_explosionsRing", "1", CVAR_ARCHIVE );
-	cg_explosionsDust =    trap_Cvar_Get( "cg_explosionsDust", "1", CVAR_ARCHIVE );
-	cg_gibs =       trap_Cvar_Get( "cg_gibs", "1", CVAR_ARCHIVE );
-	cg_outlineModels =  trap_Cvar_Get( "cg_outlineModels", "0", CVAR_ARCHIVE );
-	cg_outlineWorld =   trap_Cvar_Get( "cg_outlineWorld", "0", CVAR_ARCHIVE );
-	cg_outlinePlayers = trap_Cvar_Get( "cg_outlinePlayers", "0", CVAR_ARCHIVE );
-	cg_drawEntityBoxes =    trap_Cvar_Get( "cg_drawEntityBoxes", "0", CVAR_DEVELOPER );
-	cg_showObituaries = trap_Cvar_Get( "cg_showObituaries", va( "%i", CG_OBITUARY_HUD | CG_OBITUARY_CENTER ), CVAR_ARCHIVE );
-	cg_autoaction_demo =    trap_Cvar_Get( "cg_autoaction_demo", "0", CVAR_ARCHIVE );
-	cg_autoaction_screenshot =  trap_Cvar_Get( "cg_autoaction_screenshot", "0", CVAR_ARCHIVE );
-	cg_autoaction_stats =   trap_Cvar_Get( "cg_autoaction_stats", "0", CVAR_ARCHIVE );
-	cg_autoaction_spectator = trap_Cvar_Get( "cg_autoaction_spectator", "0", CVAR_ARCHIVE );
-	cg_simpleItems =    trap_Cvar_Get( "cg_simpleItems", "0", CVAR_ARCHIVE );
-	cg_simpleItemsSize =    trap_Cvar_Get( "cg_simpleItemsSize", "16", CVAR_ARCHIVE );
-	cg_particles =      trap_Cvar_Get( "cg_particles", "1", CVAR_ARCHIVE );
-	cg_showhelp =       trap_Cvar_Get( "cg_showhelp", "1", CVAR_ARCHIVE );
-	cg_predictLaserBeam =   trap_Cvar_Get( "cg_predictLaserBeam", "1", CVAR_ARCHIVE );
-	cg_showSelfShadow = trap_Cvar_Get( "cg_showSelfShadow", "0", CVAR_ARCHIVE );
+	cg_volume_players = Cvar_Get( "cg_volume_players", "1.0", CVAR_ARCHIVE );
+	cg_volume_effects = Cvar_Get( "cg_volume_effects", "1.0", CVAR_ARCHIVE );
+	cg_volume_announcer =   Cvar_Get( "cg_volume_announcer", "1.0", CVAR_ARCHIVE );
+	cg_volume_hitsound =    Cvar_Get( "cg_volume_hitsound", "1.0", CVAR_ARCHIVE );
+	cg_volume_voicechats =  Cvar_Get( "cg_volume_voicechats", "1.0", CVAR_ARCHIVE );
+	cg_handOffset =     Cvar_Get( "cg_handOffset", "5", CVAR_ARCHIVE );
+	cg_projectileTrail =    Cvar_Get( "cg_projectileTrail", "60", CVAR_ARCHIVE );
+	cg_projectileFireTrail =    Cvar_Get( "cg_projectileFireTrail", "90", CVAR_ARCHIVE );
+	cg_bloodTrail =     Cvar_Get( "cg_bloodTrail", "10", CVAR_ARCHIVE );
+	cg_showBloodTrail = Cvar_Get( "cg_showBloodTrail", "1", CVAR_ARCHIVE );
+	cg_projectileFireTrailAlpha =   Cvar_Get( "cg_projectileFireTrailAlpha", "0.45", CVAR_ARCHIVE );
+	cg_bloodTrailAlpha =    Cvar_Get( "cg_bloodTrailAlpha", "1.0", CVAR_ARCHIVE );
+	cg_heavyRocketExplosions = Cvar_Get( "cg_heavyRocketExplosions", "1", CVAR_ARCHIVE );
+	cg_heavyGrenadeExplosions = Cvar_Get( "cg_heavyGrenadeExplosions", "1", CVAR_ARCHIVE );
+	cg_heavyShockwaveExplosions = Cvar_Get( "cg_heavyShockwaveExplosions", "1", CVAR_ARCHIVE );
+	cg_explosionsRing = Cvar_Get( "cg_explosionsRing", "1", CVAR_ARCHIVE );
+	cg_explosionsDust =    Cvar_Get( "cg_explosionsDust", "1", CVAR_ARCHIVE );
+	cg_gibs =       Cvar_Get( "cg_gibs", "1", CVAR_ARCHIVE );
+	cg_outlineModels =  Cvar_Get( "cg_outlineModels", "0", CVAR_ARCHIVE );
+	cg_outlineWorld =   Cvar_Get( "cg_outlineWorld", "0", CVAR_ARCHIVE );
+	cg_outlinePlayers = Cvar_Get( "cg_outlinePlayers", "0", CVAR_ARCHIVE );
+	cg_drawEntityBoxes =    Cvar_Get( "cg_drawEntityBoxes", "0", CVAR_DEVELOPER );
+	cg_showObituaries = Cvar_Get( "cg_showObituaries", va( "%i", CG_OBITUARY_HUD | CG_OBITUARY_CENTER ), CVAR_ARCHIVE );
+	cg_autoaction_demo =    Cvar_Get( "cg_autoaction_demo", "0", CVAR_ARCHIVE );
+	cg_autoaction_screenshot =  Cvar_Get( "cg_autoaction_screenshot", "0", CVAR_ARCHIVE );
+	cg_autoaction_stats =   Cvar_Get( "cg_autoaction_stats", "0", CVAR_ARCHIVE );
+	cg_autoaction_spectator = Cvar_Get( "cg_autoaction_spectator", "0", CVAR_ARCHIVE );
+	cg_simpleItems =    Cvar_Get( "cg_simpleItems", "0", CVAR_ARCHIVE );
+	cg_simpleItemsSize =    Cvar_Get( "cg_simpleItemsSize", "16", CVAR_ARCHIVE );
+	cg_particles =      Cvar_Get( "cg_particles", "1", CVAR_ARCHIVE );
+	cg_showhelp =       Cvar_Get( "cg_showhelp", "1", CVAR_ARCHIVE );
+	cg_predictLaserBeam =   Cvar_Get( "cg_predictLaserBeam", "1", CVAR_ARCHIVE );
+	cg_showSelfShadow = Cvar_Get( "cg_showSelfShadow", "0", CVAR_ARCHIVE );
 
-	cg_cartoonEffects =     trap_Cvar_Get( "cg_cartoonEffects", "7", CVAR_ARCHIVE );
-	cg_cartoonHitEffect =   trap_Cvar_Get( "cg_cartoonHitEffect", "1", CVAR_ARCHIVE );
+	cg_cartoonEffects =     Cvar_Get( "cg_cartoonEffects", "7", CVAR_ARCHIVE );
+	cg_cartoonHitEffect =   Cvar_Get( "cg_cartoonHitEffect", "1", CVAR_ARCHIVE );
 
-	cg_damage_indicator =   trap_Cvar_Get( "cg_damage_indicator", "1", CVAR_ARCHIVE );
-	cg_damage_indicator_time =  trap_Cvar_Get( "cg_damage_indicator_time", "25", CVAR_ARCHIVE );
-	cg_pickup_flash =   trap_Cvar_Get( "cg_pickup_flash", "0", CVAR_ARCHIVE );
+	cg_damage_indicator =   Cvar_Get( "cg_damage_indicator", "1", CVAR_ARCHIVE );
+	cg_damage_indicator_time =  Cvar_Get( "cg_damage_indicator_time", "25", CVAR_ARCHIVE );
+	cg_pickup_flash =   Cvar_Get( "cg_pickup_flash", "0", CVAR_ARCHIVE );
 
-	cg_weaponAutoSwitch =   trap_Cvar_Get( "cg_weaponAutoSwitch", "2", CVAR_ARCHIVE );
+	cg_weaponAutoSwitch =   Cvar_Get( "cg_weaponAutoSwitch", "2", CVAR_ARCHIVE );
 
-	cg_voiceChats =     trap_Cvar_Get( "cg_voiceChats", "1", CVAR_ARCHIVE );
-	cg_shadows =        trap_Cvar_Get( "cg_shadows", "1", CVAR_ARCHIVE );
+	cg_voiceChats =     Cvar_Get( "cg_voiceChats", "1", CVAR_ARCHIVE );
+	cg_shadows =        Cvar_Get( "cg_shadows", "1", CVAR_ARCHIVE );
 
-	cg_laserBeamSubdivisions = trap_Cvar_Get( "cg_laserBeamSubdivisions", "10", CVAR_ARCHIVE );
-	cg_projectileAntilagOffset = trap_Cvar_Get( "cg_projectileAntilagOffset", "1.0", CVAR_ARCHIVE );
+	cg_laserBeamSubdivisions = Cvar_Get( "cg_laserBeamSubdivisions", "10", CVAR_ARCHIVE );
+	cg_projectileAntilagOffset = Cvar_Get( "cg_projectileAntilagOffset", "1.0", CVAR_ARCHIVE );
 
-	cg_raceGhosts =     trap_Cvar_Get( "cg_raceGhosts", "0", CVAR_ARCHIVE );
-	cg_raceGhostsAlpha =    trap_Cvar_Get( "cg_raceGhostsAlpha", "0.25", CVAR_ARCHIVE );
+	cg_raceGhosts =     Cvar_Get( "cg_raceGhosts", "0", CVAR_ARCHIVE );
+	cg_raceGhostsAlpha =    Cvar_Get( "cg_raceGhostsAlpha", "0.25", CVAR_ARCHIVE );
 
-	cg_chatBeep =       trap_Cvar_Get( "cg_chatBeep", "1", CVAR_ARCHIVE );
-	cg_chatFilter =     trap_Cvar_Get( "cg_chatFilter", "0", CVAR_ARCHIVE | CVAR_USERINFO );
-	cg_chatShowIgnored =   trap_Cvar_Get( "cg_chatShowIgnored", "1", CVAR_ARCHIVE );
+	cg_chatBeep =       Cvar_Get( "cg_chatBeep", "1", CVAR_ARCHIVE );
+	cg_chatFilter =     Cvar_Get( "cg_chatFilter", "0", CVAR_ARCHIVE | CVAR_USERINFO );
+	cg_chatShowIgnored =   Cvar_Get( "cg_chatShowIgnored", "1", CVAR_ARCHIVE );
 
 	// developer cvars
-	developer =     trap_Cvar_Get( "developer", "0", CVAR_CHEAT );
-	cg_showClamp =      trap_Cvar_Get( "cg_showClamp", "0", CVAR_DEVELOPER );
+	cg_showClamp =      Cvar_Get( "cg_showClamp", "0", CVAR_DEVELOPER );
 
 	//team models
-	cg_teamPLAYERSmodel = trap_Cvar_Get( "cg_teamPLAYERSmodel", DEFAULT_PLAYERMODEL, CVAR_ARCHIVE );
-	cg_teamPLAYERSmodelForce = trap_Cvar_Get( "cg_teamPLAYERSmodelForce", "0", CVAR_ARCHIVE );
-	cg_teamPLAYERSskin = trap_Cvar_Get( "cg_teamPLAYERSskin", DEFAULT_PLAYERSKIN, CVAR_ARCHIVE );
-	cg_teamPLAYERScolor = trap_Cvar_Get( "cg_teamPLAYERScolor", DEFAULT_TEAMBETA_COLOR, CVAR_ARCHIVE );
-	cg_teamPLAYERScolorForce = trap_Cvar_Get( "cg_teamPLAYERScolorForce", "0", CVAR_ARCHIVE );
+	cg_teamPLAYERSmodel = Cvar_Get( "cg_teamPLAYERSmodel", DEFAULT_PLAYERMODEL, CVAR_ARCHIVE );
+	cg_teamPLAYERSmodelForce = Cvar_Get( "cg_teamPLAYERSmodelForce", "0", CVAR_ARCHIVE );
+	cg_teamPLAYERSskin = Cvar_Get( "cg_teamPLAYERSskin", DEFAULT_PLAYERSKIN, CVAR_ARCHIVE );
+	cg_teamPLAYERScolor = Cvar_Get( "cg_teamPLAYERScolor", DEFAULT_TEAMBETA_COLOR, CVAR_ARCHIVE );
+	cg_teamPLAYERScolorForce = Cvar_Get( "cg_teamPLAYERScolorForce", "0", CVAR_ARCHIVE );
 	cg_teamPLAYERSmodel->modified = true;
 	cg_teamPLAYERSmodelForce->modified = true;
 	cg_teamPLAYERSskin->modified = true;
 	cg_teamPLAYERScolor->modified = true;
 	cg_teamPLAYERScolorForce->modified = true;
 
-	cg_teamALPHAmodel = trap_Cvar_Get( "cg_teamALPHAmodel", "bigvic", CVAR_ARCHIVE );
-	cg_teamALPHAmodelForce = trap_Cvar_Get( "cg_teamALPHAmodelForce", "1", CVAR_ARCHIVE );
-	cg_teamALPHAskin = trap_Cvar_Get( "cg_teamALPHAskin", DEFAULT_PLAYERSKIN, CVAR_ARCHIVE );
-	cg_teamALPHAcolor = trap_Cvar_Get( "cg_teamALPHAcolor", DEFAULT_TEAMALPHA_COLOR, CVAR_ARCHIVE );
+	cg_teamALPHAmodel = Cvar_Get( "cg_teamALPHAmodel", "bigvic", CVAR_ARCHIVE );
+	cg_teamALPHAmodelForce = Cvar_Get( "cg_teamALPHAmodelForce", "1", CVAR_ARCHIVE );
+	cg_teamALPHAskin = Cvar_Get( "cg_teamALPHAskin", DEFAULT_PLAYERSKIN, CVAR_ARCHIVE );
+	cg_teamALPHAcolor = Cvar_Get( "cg_teamALPHAcolor", DEFAULT_TEAMALPHA_COLOR, CVAR_ARCHIVE );
 	cg_teamALPHAmodel->modified = true;
 	cg_teamALPHAmodelForce->modified = true;
 	cg_teamALPHAskin->modified = true;
 	cg_teamALPHAcolor->modified = true;
 
-	cg_teamBETAmodel = trap_Cvar_Get( "cg_teamBETAmodel", "padpork", CVAR_ARCHIVE );
-	cg_teamBETAmodelForce = trap_Cvar_Get( "cg_teamBETAmodelForce", "1", CVAR_ARCHIVE );
-	cg_teamBETAskin = trap_Cvar_Get( "cg_teamBETAskin", DEFAULT_PLAYERSKIN, CVAR_ARCHIVE );
-	cg_teamBETAcolor = trap_Cvar_Get( "cg_teamBETAcolor", DEFAULT_TEAMBETA_COLOR, CVAR_ARCHIVE );
+	cg_teamBETAmodel = Cvar_Get( "cg_teamBETAmodel", "padpork", CVAR_ARCHIVE );
+	cg_teamBETAmodelForce = Cvar_Get( "cg_teamBETAmodelForce", "1", CVAR_ARCHIVE );
+	cg_teamBETAskin = Cvar_Get( "cg_teamBETAskin", DEFAULT_PLAYERSKIN, CVAR_ARCHIVE );
+	cg_teamBETAcolor = Cvar_Get( "cg_teamBETAcolor", DEFAULT_TEAMBETA_COLOR, CVAR_ARCHIVE );
 	cg_teamBETAmodel->modified = true;
 	cg_teamBETAmodelForce->modified = true;
 	cg_teamBETAskin->modified = true;
 	cg_teamBETAcolor->modified = true;
 
-	cg_forceMyTeamAlpha = trap_Cvar_Get( "cg_forceMyTeamAlpha", "0", CVAR_ARCHIVE );
+	cg_forceMyTeamAlpha = Cvar_Get( "cg_forceMyTeamAlpha", "0", CVAR_ARCHIVE );
 
 	// dmh - learn0more's team colored beams
-	cg_teamColoredBeams = trap_Cvar_Get( "cg_teamColoredBeams", "0", CVAR_ARCHIVE );
-	cg_teamColoredInstaBeams = trap_Cvar_Get( "cg_teamColoredInstaBeams", "1", CVAR_ARCHIVE );
+	cg_teamColoredBeams = Cvar_Get( "cg_teamColoredBeams", "0", CVAR_ARCHIVE );
+	cg_teamColoredInstaBeams = Cvar_Get( "cg_teamColoredInstaBeams", "1", CVAR_ARCHIVE );
 
-	cg_ebbeam_old = trap_Cvar_Get( "cg_ebbeam_old", "0", CVAR_ARCHIVE );
-	cg_ebbeam_width = trap_Cvar_Get( "cg_ebbeam_width", "64", CVAR_ARCHIVE );
-	cg_ebbeam_alpha = trap_Cvar_Get( "cg_ebbeam_alpha", "0.4", CVAR_ARCHIVE );
-	cg_ebbeam_time = trap_Cvar_Get( "cg_ebbeam_time", "0.6", CVAR_ARCHIVE );
+	cg_ebbeam_old = Cvar_Get( "cg_ebbeam_old", "0", CVAR_ARCHIVE );
+	cg_ebbeam_width = Cvar_Get( "cg_ebbeam_width", "64", CVAR_ARCHIVE );
+	cg_ebbeam_alpha = Cvar_Get( "cg_ebbeam_alpha", "0.4", CVAR_ARCHIVE );
+	cg_ebbeam_time = Cvar_Get( "cg_ebbeam_time", "0.6", CVAR_ARCHIVE );
 
-	cg_instabeam_width = trap_Cvar_Get( "cg_instabeam_width", "7", CVAR_ARCHIVE );
-	cg_instabeam_alpha = trap_Cvar_Get( "cg_instabeam_alpha", "0.4", CVAR_ARCHIVE );
-	cg_instabeam_time = trap_Cvar_Get( "cg_instabeam_time", "0.4", CVAR_ARCHIVE );
+	cg_instabeam_width = Cvar_Get( "cg_instabeam_width", "7", CVAR_ARCHIVE );
+	cg_instabeam_alpha = Cvar_Get( "cg_instabeam_alpha", "0.4", CVAR_ARCHIVE );
+	cg_instabeam_time = Cvar_Get( "cg_instabeam_time", "0.4", CVAR_ARCHIVE );
 
-	cg_showminimap = trap_Cvar_Get( "cg_showMiniMap", "0", CVAR_ARCHIVE );
-	cg_showitemtimers = trap_Cvar_Get( "cg_showItemTimers", "3", CVAR_ARCHIVE );
-	cg_placebo =  trap_Cvar_Get( "cg_placebo", "0", CVAR_ARCHIVE );
-	cg_strafeHUD = trap_Cvar_Get( "cg_strafeHUD", "0", CVAR_ARCHIVE );
-	cg_touch_flip = trap_Cvar_Get( "cg_touch_flip", "0", CVAR_ARCHIVE );
-	cg_touch_scale = trap_Cvar_Get( "cg_touch_scale", "100", CVAR_ARCHIVE );
-	cg_touch_showMoveDir = trap_Cvar_Get( "cg_touch_showMoveDir", "1", CVAR_ARCHIVE );
-	cg_touch_zoomThres = trap_Cvar_Get( "cg_touch_zoomThres", "24", CVAR_ARCHIVE );
-	cg_touch_zoomTime = trap_Cvar_Get( "cg_touch_zoomTime", "250", CVAR_ARCHIVE );
+	cg_showminimap = Cvar_Get( "cg_showMiniMap", "0", CVAR_ARCHIVE );
+	cg_showitemtimers = Cvar_Get( "cg_showItemTimers", "3", CVAR_ARCHIVE );
+	cg_placebo =  Cvar_Get( "cg_placebo", "0", CVAR_ARCHIVE );
+	cg_strafeHUD = Cvar_Get( "cg_strafeHUD", "0", CVAR_ARCHIVE );
+	cg_touch_flip = Cvar_Get( "cg_touch_flip", "0", CVAR_ARCHIVE );
+	cg_touch_scale = Cvar_Get( "cg_touch_scale", "100", CVAR_ARCHIVE );
+	cg_touch_showMoveDir = Cvar_Get( "cg_touch_showMoveDir", "1", CVAR_ARCHIVE );
+	cg_touch_zoomThres = Cvar_Get( "cg_touch_zoomThres", "24", CVAR_ARCHIVE );
+	cg_touch_zoomTime = Cvar_Get( "cg_touch_zoomTime", "250", CVAR_ARCHIVE );
 
-	cg_playList = trap_Cvar_Get( "cg_playList", S_PLAYLIST_MATCH, CVAR_ARCHIVE );
-	cg_playListShuffle = trap_Cvar_Get( "cg_playListShuffle", "1", CVAR_ARCHIVE );
+	cg_playList = Cvar_Get( "cg_playList", S_PLAYLIST_MATCH, CVAR_ARCHIVE );
+	cg_playListShuffle = Cvar_Get( "cg_playListShuffle", "1", CVAR_ARCHIVE );
 
-	cg_flashWindowCount = trap_Cvar_Get( "cg_flashWindowCount", "4", CVAR_ARCHIVE );
+	cg_flashWindowCount = Cvar_Get( "cg_flashWindowCount", "4", CVAR_ARCHIVE );
 
-	cg_autoRespectMenu = trap_Cvar_Get( "cg_autoRespectMenu", "1", CVAR_ARCHIVE );
+	cg_autoRespectMenu = Cvar_Get( "cg_autoRespectMenu", "1", CVAR_ARCHIVE );
 
-	cg_viewBob = trap_Cvar_Get( "cg_viewBob", "1", CVAR_ARCHIVE );
+	cg_viewBob = Cvar_Get( "cg_viewBob", "1", CVAR_ARCHIVE );
 }
 
 /*
@@ -975,7 +885,7 @@ void CG_Precache( void ) {
 	}
 
 	cgs.precacheStart = cgs.precacheCount;
-	cgs.precacheStartMsec = trap_Milliseconds();
+	cgs.precacheStartMsec = Sys_Milliseconds();
 
 	CG_RegisterModels();
 	if( cgs.precacheModelsStart < MAX_MODELS ) {
@@ -1015,7 +925,8 @@ static void CG_RegisterConfigStrings( void ) {
 	cgs.precacheCount = cgs.precacheTotal = 0;
 
 	for( i = 0; i < MAX_CONFIGSTRINGS; i++ ) {
-		trap_GetConfigString( i, cgs.configStrings[i], MAX_CONFIGSTRING_CHARS );
+		// TODO: Just share configstring values?
+		memcpy( cgs.configStrings[i], cl.configstrings[i], MAX_CONFIGSTRING_CHARS );
 
 		cs = cgs.configStrings[i];
 		if( !cs[0] ) {
@@ -1042,7 +953,7 @@ static void CG_RegisterConfigStrings( void ) {
 
 	GS_SetGametypeName( cgs.configStrings[CS_GAMETYPENAME] );
 
-	trap_Cmd_ExecuteText( EXEC_NOW, va( "exec configs/client/%s.cfg silent", gs.gametypeName ) );
+	Cbuf_ExecuteText( EXEC_NOW, va( "exec configs/client/%s.cfg silent", gs.gametypeName ) );
 
 	CG_SC_AutoRecordAction( cgs.configStrings[CS_AUTORECORDSTATE] );
 }
@@ -1059,9 +970,9 @@ void CG_StartBackgroundTrack( void ) {
 	Q_strncpyz( loop, COM_Parse( &string ), sizeof( loop ) );
 
 	if( intro[0] ) {
-		trap_S_StartBackgroundTrack( intro, loop, 0 );
+		SoundSystem::Instance()->StartBackgroundTrack( intro, loop, 0 );
 	} else if( cg_playList->string[0] ) {
-		trap_S_StartBackgroundTrack( cg_playList->string, NULL, cg_playListShuffle->integer ? 1 : 0 );
+		SoundSystem::Instance()->StartBackgroundTrack( cg_playList->string, NULL, cg_playListShuffle->integer ? 1 : 0 );
 	}
 }
 
@@ -1159,6 +1070,7 @@ void CG_Init( const char *serverName, unsigned int playerNum,
 	CG_RegisterVariables();
 	CG_InitTemporaryBoneposesCache();
 	CG_PModelsInit();
+	CG_WModelsInit();
 
 	CG_ScreenInit();
 
@@ -1171,7 +1083,7 @@ void CG_Init( const char *serverName, unsigned int playerNum,
 
 	// register fonts here so loading screen works
 	CG_RegisterFonts();
-	cgs.shaderWhite = trap_R_RegisterPic( "$whiteimage" );
+	cgs.shaderWhite = R_RegisterPic( "$whiteimage" );
 
 	// l10n
 	CG_InitL10n();
@@ -1210,38 +1122,13 @@ void CG_Init( const char *serverName, unsigned int playerNum,
 * CG_Shutdown
 */
 void CG_Shutdown( void ) {
+	CG_SC_ResetObituaries();
 	CG_FreeLocalEntities();
 	CG_DemocamShutdown();
 	CG_ScreenShutdown();
 	CG_UnregisterCGameCommands();
+	CG_WModelsShutdown();
+	CG_PModelsShutdown();
 	CG_FreeTemporaryBoneposesCache();
 	CG_ShutdownInput();
 }
-
-//======================================================================
-
-#ifndef CGAME_HARD_LINKED
-
-// this is only here so the functions in q_shared.c and q_math.c can link
-void Sys_Error( const char *format, ... ) {
-	va_list argptr;
-	char msg[3072];
-
-	va_start( argptr, format );
-	Q_vsnprintfz( msg, sizeof( msg ), format, argptr );
-	va_end( argptr );
-
-	trap_Error( msg );
-}
-
-void Com_Printf( const char *format, ... ) {
-	va_list argptr;
-	char msg[3072];
-
-	va_start( argptr, format );
-	Q_vsnprintfz( msg, sizeof( msg ), format, argptr );
-	va_end( argptr );
-
-	trap_Print( msg );
-}
-#endif

@@ -21,6 +21,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // cg_scoreboard.c -- scoreboard layouts for gametypes
 
 #include "cg_local.h"
+#include "../ref_gl/r_frontend.h"
+#include "../client/client.h"
 
 #define SCB_BACKGROUND_ALPHA 0.25f
 
@@ -45,7 +47,7 @@ static void CG_DrawAlignPic( int x, int y, int width, int height, int align, con
 	x = CG_HorizontalAlignForWidth( x, align, width );
 	y = CG_VerticalAlignForHeight( y, align, height );
 
-	trap_R_DrawStretchPic( x, y, width, height, 0, 0, 1, 1, color, shader );
+	RF_DrawStretchPic( x, y, width, height, 0, 0, 1, 1, color, shader );
 }
 
 /*
@@ -146,10 +148,10 @@ static int SCB_DrawPlayerStats( int x, int y, struct qfontface_s *font ) {
 
 	// Center the box
 	xoffset = xpos;
-	yoffset = trap_SCR_FontHeight( font );
+	yoffset = SCR_FontHeight( font );
 
 	// Room for header, it's actually written later if we have at least one stat
-	yoffset += trap_SCR_FontHeight( font );
+	yoffset += SCR_FontHeight( font );
 
 	lines = 0;
 	for( i = 0; i < num_weapons; ) {
@@ -167,10 +169,10 @@ static int SCB_DrawPlayerStats( int x, int y, struct qfontface_s *font ) {
 
 			// short name
 			Q_snprintfz( string, sizeof( string ), "%s%2s", it->color, it->shortname );
-			trap_SCR_DrawStringWidth( x + xoffset, y + yoffset, ALIGN_LEFT_TOP, string, SCB_TINYFIELD_PIXELWIDTH, font, colorWhite );
+			SCR_DrawStringWidth( x + xoffset, y + yoffset, ALIGN_LEFT_TOP, string, SCB_TINYFIELD_PIXELWIDTH, font, colorWhite );
 
 			Q_snprintfz( string, sizeof( string ), "%2d%c", scb_player_stats[2 * ( i + j ) + 1], '%' );
-			trap_SCR_DrawStringWidth( x + xoffset + 2 * SCB_TINYFIELD_PIXELWIDTH, y + yoffset, ALIGN_CENTER_TOP, string, 2 * SCB_SMALLFIELD_PIXELWIDTH, font, colorWhite );
+			SCR_DrawStringWidth( x + xoffset + 2 * SCB_TINYFIELD_PIXELWIDTH, y + yoffset, ALIGN_CENTER_TOP, string, 2 * SCB_SMALLFIELD_PIXELWIDTH, font, colorWhite );
 
 			// separator
 			xoffset = 0;
@@ -180,7 +182,7 @@ static int SCB_DrawPlayerStats( int x, int y, struct qfontface_s *font ) {
 		// next line
 		if( done > 0 ) {
 			lines++;
-			yoffset += trap_SCR_FontHeight( font );
+			yoffset += SCR_FontHeight( font );
 		}
 
 		i += j;
@@ -189,18 +191,18 @@ static int SCB_DrawPlayerStats( int x, int y, struct qfontface_s *font ) {
 	if( lines ) {
 		// if we drew anything, draw header and box too
 		xoffset = xpos;
-		yoffset = trap_SCR_FontHeight( font );
+		yoffset = SCR_FontHeight( font );
 
 		// header
-		trap_SCR_DrawStringWidth( x + xoffset, y + yoffset, ALIGN_LEFT_TOP,
+		SCR_DrawStringWidth( x + xoffset, y + yoffset, ALIGN_LEFT_TOP,
 								  CG_TranslateString( "Weapon stats" ), width, font, colorMdGrey );
-		yoffset += trap_SCR_FontHeight( font );
+		yoffset += SCR_FontHeight( font );
 
 		// box
-		trap_R_DrawStretchPic( x + xoffset - SCB_TINYFIELD_PIXELWIDTH / 2, y + yoffset, width + SCB_TINYFIELD_PIXELWIDTH,
-							   lines * trap_SCR_FontHeight( font ), 0, 0, 1, 1, color, cgs.shaderWhite );
+		RF_DrawStretchPic( x + xoffset - SCB_TINYFIELD_PIXELWIDTH / 2, y + yoffset, width + SCB_TINYFIELD_PIXELWIDTH,
+							   lines * SCR_FontHeight( font ), 0, 0, 1, 1, color, cgs.shaderWhite );
 
-		return ( trap_SCR_FontHeight( font ) * ( 2 + lines ) );
+		return ( SCR_FontHeight( font ) * ( 2 + lines ) );
 	}
 
 	return 0;
@@ -282,12 +284,12 @@ static int SCR_DrawChallengers( const char **ptrptr, int x, int y, int panelWidt
 
 	assert( ptrptr && *ptrptr );
 
-	height = trap_SCR_FontHeight( font );
+	height = SCR_FontHeight( font );
 
 	// draw title
 	yoffset = height;
 	if( pass ) {
-		trap_SCR_DrawString( x + xoffset, y + yoffset, ALIGN_CENTER_TOP,
+		SCR_DrawString( x + xoffset, y + yoffset, ALIGN_CENTER_TOP,
 							 CG_TranslateString( "Challengers" ), font, colorCyan );
 	}
 	yoffset += height;
@@ -300,7 +302,7 @@ static int SCR_DrawChallengers( const char **ptrptr, int x, int y, int panelWidt
 
 		if( pass ) {
 			SCR_SpectatorString( string, sizeof( string ), spec, true );
-			trap_SCR_DrawString( x + xoffset, y + yoffset, ALIGN_CENTER_TOP, string, font, colorWhite );
+			SCR_DrawString( x + xoffset, y + yoffset, ALIGN_CENTER_TOP, string, font, colorWhite );
 		}
 		yoffset += height;
 	}
@@ -345,7 +347,7 @@ static int SCR_DrawSpectators( const char **ptrptr, int x, int y, int panelWidth
 		fullwidth = cgs.vidWidth * 0.75;
 	}
 
-	height = trap_SCR_FontHeight( font );
+	height = SCR_FontHeight( font );
 	yoffset = height;
 
 	backup = *ptrptr;
@@ -356,7 +358,7 @@ static int SCR_DrawSpectators( const char **ptrptr, int x, int y, int panelWidth
 			break;
 		}
 
-		width = trap_SCR_strWidth( cgs.clientInfo[spec.playerNum].name, font, 0 ) + trap_SCR_strWidth( "M", font, 0 ) * ( havePing ? 6 : 2 );
+		width = SCR_strWidth( cgs.clientInfo[spec.playerNum].name, font, 0 ) + SCR_strWidth( "M", font, 0 ) * ( havePing ? 6 : 2 );
 		if( width > maxwidth ) {
 			maxwidth = width;
 		}
@@ -413,13 +415,13 @@ static int SCR_DrawSpectators( const char **ptrptr, int x, int y, int panelWidth
 		if( !titleDrawn ) {
 			titleDrawn = true;
 			if( pass ) {
-				trap_SCR_DrawString( x, y + yoffset, ALIGN_CENTER_TOP, CG_TranslateString( title ), font, titleColor );
+				SCR_DrawString( x, y + yoffset, ALIGN_CENTER_TOP, CG_TranslateString( title ), font, titleColor );
 			}
 			yoffset += height;
 		}
 
 		SCR_SpectatorString( string, sizeof( string ), spec, havePing );
-		width = trap_SCR_strWidth( string, font, 0 );
+		width = SCR_strWidth( string, font, 0 );
 		if( width > colwidth ) {
 			width = colwidth;
 		}
@@ -427,7 +429,7 @@ static int SCR_DrawSpectators( const char **ptrptr, int x, int y, int panelWidth
 				  CG_HorizontalAlignForWidth( colwidth / 2, ALIGN_CENTER_TOP, width );
 
 		if( pass ) {
-			trap_SCR_DrawClampString( x + xoffset, y + yoffset, string, x + xoffset, y + yoffset,
+			SCR_DrawClampString( x + xoffset, y + yoffset, string, x + xoffset, y + yoffset,
 									  x + xoffset + width, y + yoffset + height, font, colorWhite );
 		}
 
@@ -499,7 +501,7 @@ static const char *SCR_GetNextColumnLayout( const char **ptrlay, const char **pt
 		float widthScale = cg_scoreboardWidthScale->value;
 		bool relative = true;
 		if( token[0] == 'l' ) { // line heights
-			widthScale *= trap_SCR_FontHeight( font );
+			widthScale *= SCR_FontHeight( font );
 			relative = false;
 			token++;
 		}
@@ -592,7 +594,7 @@ static int SCR_DrawTeamTab( const char **ptrptr, int *curteam, int x, int y, int
 		xoffset = ( SCB_CENTERMARGIN * dir );
 
 		width = ( cgs.vidWidth * 0.5 ) - SCB_CENTERMARGIN;
-		height = trap_SCR_FontHeight( titleFont ) + 2;
+		height = SCR_FontHeight( titleFont ) + 2;
 
 		if( !pass ) {
 			CG_DrawAlignPic( x + xoffset, y + yoffset + SCB_SCORENUMBER_SIZE - height,
@@ -606,13 +608,13 @@ static int SCR_DrawTeamTab( const char **ptrptr, int *curteam, int x, int y, int
 							   SCB_SCORENUMBER_SIZE, SCB_SCORENUMBER_SIZE, team_score );
 
 			xoffset += ( ( SCB_SCORENUMBER_SIZE * strlen( va( "%i", team_score ) ) + ( 16 * cgs.vidHeight / 600 ) ) * dir );
-			trap_SCR_DrawStringWidth( x + xoffset + ( ( SCB_TINYFIELD_PIXELWIDTH + ( 16 * cgs.vidHeight / 600 ) ) * dir ),
-									  y + yoffset + SCB_SCORENUMBER_SIZE - ( trap_SCR_FontHeight( titleFont ) + 1 ),
+			SCR_DrawStringWidth( x + xoffset + ( ( SCB_TINYFIELD_PIXELWIDTH + ( 16 * cgs.vidHeight / 600 ) ) * dir ),
+									  y + yoffset + SCB_SCORENUMBER_SIZE - ( SCR_FontHeight( titleFont ) + 1 ),
 									  align, GS_TeamName( team ), SCB_TEAMNAME_PIXELWIDTH, titleFont, colorWhite );
 
 			CG_PingColor( team_ping, pingcolor );
-			trap_SCR_DrawStringWidth( x + xoffset,
-									  y + yoffset + SCB_SCORENUMBER_SIZE - ( trap_SCR_FontHeight( font ) + 1 ),
+			SCR_DrawStringWidth( x + xoffset,
+									  y + yoffset + SCB_SCORENUMBER_SIZE - ( SCR_FontHeight( font ) + 1 ),
 									  align, va( "%i", team_ping ), SCB_TINYFIELD_PIXELWIDTH, font, pingcolor );
 		}
 
@@ -626,7 +628,7 @@ static int SCR_DrawTeamTab( const char **ptrptr, int *curteam, int x, int y, int
 	layout = cgs.configStrings[CS_SCB_PLAYERTAB_LAYOUT];
 	titles = cgs.configStrings[CS_SCB_PLAYERTAB_TITLES];
 
-	height = trap_SCR_FontHeight( font );
+	height = SCR_FontHeight( font );
 
 	// start from the center again
 	xoffset = CG_HorizontalAlignForWidth( 0, align, panelWidth );
@@ -639,14 +641,14 @@ static int SCR_DrawTeamTab( const char **ptrptr, int *curteam, int x, int y, int
 
 		if( width ) {
 			if( pass ) {
-				trap_SCR_DrawClampString( x + xoffset, y + yoffset, CG_TranslateString( token ),
+				SCR_DrawClampString( x + xoffset, y + yoffset, CG_TranslateString( token ),
 										  x + xoffset, y + yoffset, x + xoffset + width, y + yoffset + height, font, colorWhite );
 			}
 			xoffset += width;
 		}
 	}
 
-	yoffset += trap_SCR_FontHeight( font );
+	yoffset += SCR_FontHeight( font );
 
 	return yoffset;
 }
@@ -680,14 +682,14 @@ static void SCR_DrawPlayerIcons( struct qfontface_s *font ) {
 	qsort( scr_playericons, scr_numplayericons, sizeof( scr_playericons[0] ),
 		   ( int ( * )( const void *, const void * ) )SCR_ComparePlayerIcons );
 
-	int height = trap_SCR_FontHeight( font );
+	int height = SCR_FontHeight( font );
 	vec4_t color;
 	Vector4Copy( colorWhite, color );
 
 	for( unsigned i = 0; i < scr_numplayericons; i++ ) {
 		scr_playericon_t &icon = scr_playericons[i];
 		color[3] = icon.alpha;
-		trap_R_DrawStretchPic( icon.x, icon.y, height, height, 0, 0, 1, 1, color, icon.image );
+		RF_DrawStretchPic( icon.x, icon.y, height, height, 0, 0, 1, 1, color, icon.image );
 	}
 
 	scr_numplayericons = 0;
@@ -737,7 +739,7 @@ static int SCR_DrawPlayerTab( const char **ptrptr, int team, int x, int y, int p
 	xoffset = 0;
 	yoffset = 0;
 
-	height = trap_SCR_FontHeight( font );
+	height = SCR_FontHeight( font );
 
 	// start from the center again
 	xoffset = CG_HorizontalAlignForWidth( 0, align, panelWidth );
@@ -870,7 +872,7 @@ static int SCR_DrawPlayerTab( const char **ptrptr, int team, int x, int y, int p
 		}
 
 		if( !pass ) {
-			trap_R_DrawStretchPic( x + xoffset, y + yoffset, width, height, 0, 0, 1, 1, teamcolor, cgs.shaderWhite );
+			RF_DrawStretchPic( x + xoffset, y + yoffset, width, height, 0, 0, 1, 1, teamcolor, cgs.shaderWhite );
 
 			if( icon ) {
 				SCR_AddPlayerIcon( icon, x + xoffset, y + yoffset, color[3], font );
@@ -879,7 +881,7 @@ static int SCR_DrawPlayerTab( const char **ptrptr, int team, int x, int y, int p
 
 		// draw the column value
 		if( pass && string[0] ) {
-			trap_SCR_DrawClampString( x + xoffset, y + yoffset, string,
+			SCR_DrawClampString( x + xoffset, y + yoffset, string,
 									  x + xoffset, y + yoffset,
 									  x + xoffset + width, y + yoffset + height, font, color );
 		}
@@ -899,12 +901,12 @@ static int SCR_DrawPlayerTab( const char **ptrptr, int team, int x, int y, int p
 struct qfontface_s *CG_ScoreboardFont( cvar_t *familyCvar, cvar_t *sizeCvar ) {
 	struct qfontface_s *font;
 
-	font = trap_SCR_RegisterFont( familyCvar->string, QFONT_STYLE_NONE, ceilf( sizeCvar->integer * ( (float)cgs.vidHeight / 600.0f ) ) );
+	font = SCR_RegisterFont( familyCvar->string, QFONT_STYLE_NONE, ceilf( sizeCvar->integer * ( (float)cgs.vidHeight / 600.0f ) ) );
 	if( !font ) {
-		CG_Printf( "%sWarning: Invalid font in '%s'. Reseting to default\n", familyCvar->name, S_COLOR_YELLOW );
-		trap_Cvar_Set( familyCvar->name, familyCvar->dvalue );
-		trap_Cvar_Set( sizeCvar->name, sizeCvar->dvalue );
-		font = trap_SCR_RegisterFont( familyCvar->string, QFONT_STYLE_NONE, sizeCvar->integer );
+		Com_Printf( "%sWarning: Invalid font in '%s'. Reseting to default\n", familyCvar->name, S_COLOR_YELLOW );
+		Cvar_Set( familyCvar->name, familyCvar->dvalue );
+		Cvar_Set( sizeCvar->name, sizeCvar->dvalue );
+		font = SCR_RegisterFont( familyCvar->string, QFONT_STYLE_NONE, sizeCvar->integer );
 
 		if( !font ) {
 			font = sizeCvar->integer > DEFAULT_SCOREBOARD_FONT_SIZE ? cgs.fontSystemBig : cgs.fontSystemSmall;
@@ -953,10 +955,10 @@ void CG_DrawScoreboard( void ) {
 	}
 	Q_strupr( title );
 
-	trap_SCR_DrawString( xpos, ypos, ALIGN_CENTER_TOP, title, titlefont, whiteTransparent );
-	ypos += trap_SCR_FontHeight( titlefont );
-	trap_SCR_DrawStringWidth( xpos, ypos, ALIGN_CENTER_TOP, cgs.configStrings[CS_HOSTNAME], cgs.vidWidth * 0.75, font, whiteTransparent );
-	ypos += trap_SCR_FontHeight( font );
+	SCR_DrawString( xpos, ypos, ALIGN_CENTER_TOP, title, titlefont, whiteTransparent );
+	ypos += SCR_FontHeight( titlefont );
+	SCR_DrawStringWidth( xpos, ypos, ALIGN_CENTER_TOP, cgs.configStrings[CS_HOSTNAME], cgs.vidWidth * 0.75, font, whiteTransparent );
+	ypos += SCR_FontHeight( font );
 
 	// calculate the panel width from the layout
 	panelWidth = 0;
@@ -1018,7 +1020,7 @@ void CG_DrawScoreboard( void ) {
 	}
 
 	// add the player stats
-	yoffset = maxyoffset + trap_SCR_FontHeight( font );
+	yoffset = maxyoffset + SCR_FontHeight( font );
 	yoffset += SCB_DrawPlayerStats( xpos, ypos + yoffset, monofont );
 }
 
@@ -1045,7 +1047,7 @@ void CG_ToggleScores_f( void ) {
 	if( cgs.demoPlaying || cg.frame.multipov ) {
 		cg.showScoreboard = !cg.showScoreboard;
 	} else {
-		trap_Cmd_ExecuteText( EXEC_NOW, "svscore" );
+		Cbuf_ExecuteText( EXEC_NOW, "svscore" );
 	}
 }
 
@@ -1056,7 +1058,7 @@ void CG_ScoresOn_f( void ) {
 	if( cgs.demoPlaying || cg.frame.multipov ) {
 		cg.showScoreboard = true;
 	} else {
-		trap_Cmd_ExecuteText( EXEC_NOW, "svscore 1" );
+		Cbuf_ExecuteText( EXEC_NOW, "svscore 1" );
 	}
 }
 
@@ -1067,7 +1069,7 @@ void CG_ScoresOff_f( void ) {
 	if( cgs.demoPlaying || cg.frame.multipov ) {
 		cg.showScoreboard = false;
 	} else {
-		trap_Cmd_ExecuteText( EXEC_NOW, "svscore 0" );
+		Cbuf_ExecuteText( EXEC_NOW, "svscore 0" );
 	}
 }
 

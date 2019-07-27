@@ -19,6 +19,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #include "cg_local.h"
+#include "../qcommon/cvar.h"
+#include "../qcommon/qcommon.h"
+#include "../ref_gl/r_frontend.h"
+#include "../client/snd_public.h"
+#include "../cin/cin.h"
 
 static void CG_UpdateEntities( void );
 
@@ -32,27 +37,27 @@ static void CG_FixVolumeCvars( void ) {
 	}
 
 	if( cg_volume_players->value < 0.0f ) {
-		trap_Cvar_SetValue( "cg_volume_players", 0.0f );
+		Cvar_SetValue( "cg_volume_players", 0.0f );
 	} else if( cg_volume_players->value > 2.0f ) {
-		trap_Cvar_SetValue( "cg_volume_players", 2.0f );
+		Cvar_SetValue( "cg_volume_players", 2.0f );
 	}
 
 	if( cg_volume_effects->value < 0.0f ) {
-		trap_Cvar_SetValue( "cg_volume_effects", 0.0f );
+		Cvar_SetValue( "cg_volume_effects", 0.0f );
 	} else if( cg_volume_effects->value > 2.0f ) {
-		trap_Cvar_SetValue( "cg_volume_effects", 2.0f );
+		Cvar_SetValue( "cg_volume_effects", 2.0f );
 	}
 
 	if( cg_volume_announcer->value < 0.0f ) {
-		trap_Cvar_SetValue( "cg_volume_announcer", 0.0f );
+		Cvar_SetValue( "cg_volume_announcer", 0.0f );
 	} else if( cg_volume_announcer->value > 2.0f ) {
-		trap_Cvar_SetValue( "cg_volume_announcer", 2.0f );
+		Cvar_SetValue( "cg_volume_announcer", 2.0f );
 	}
 
 	if( cg_volume_hitsound->value < 0.0f ) {
-		trap_Cvar_SetValue( "cg_volume_hitsound", 0.0f );
+		Cvar_SetValue( "cg_volume_hitsound", 0.0f );
 	} else if( cg_volume_hitsound->value > 10.0f ) {
-		trap_Cvar_SetValue( "cg_volume_hitsound", 10.0f );
+		Cvar_SetValue( "cg_volume_hitsound", 10.0f );
 	}
 }
 
@@ -157,7 +162,7 @@ static void CG_NewPacketEntityState( entity_state_t *state ) {
 				VectorNormalize( dir );
 				VectorScale( dir, VectorLength( state->linearProjectileVelocity ), cent->linearProjectileViewerVelocity );
 			} else {
-				//CG_Printf( "Couldn't get projection source\n" );
+				//Com_Printf( "Couldn't get projection source\n" );
 				VectorCopy( state->linearProjectileVelocity, cent->linearProjectileViewerVelocity );
 				VectorCopy( state->origin2, cent->linearProjectileViewerSource );
 			}
@@ -360,7 +365,7 @@ bool CG_NewFrameSnap( snapshot_t *frame, snapshot_t *lerpframe ) {
 	cg.portalInView = false;
 
 	if( cg_projectileAntilagOffset->value > 1.0f || cg_projectileAntilagOffset->value < 0.0f ) {
-		trap_Cvar_ForceSet( "cg_projectileAntilagOffset", cg_projectileAntilagOffset->dvalue );
+		Cvar_ForceSet( "cg_projectileAntilagOffset", cg_projectileAntilagOffset->dvalue );
 	}
 
 	CG_UpdatePlayerState();
@@ -401,7 +406,7 @@ bool CG_NewFrameSnap( snapshot_t *frame, snapshot_t *lerpframe ) {
 
 	if( cg.firstFrame && !cgs.demoPlaying ) {
 		// request updates on our private state
-		trap_Cmd_ExecuteText( EXEC_NOW, "upstate" );
+		Cbuf_ExecuteText( EXEC_NOW, "upstate" );
 	}
 
 	cg.firstFrame = false; // not the first frame anymore
@@ -424,10 +429,10 @@ ADD INTERPOLATED ENTITIES TO RENDERING LIST
 * CG_CModelForEntity
 *  get the collision model for the given entity, no matter if box or brush-model.
 */
-struct cmodel_s *CG_CModelForEntity( int entNum ) {
+const cmodel_s *CG_CModelForEntity( int entNum ) {
 	int x, zd, zu;
 	centity_t *cent;
-	struct cmodel_s *cmodel = NULL;
+	const cmodel_s *cmodel = NULL;
 	vec3_t bmins, bmaxs;
 
 	if( entNum < 0 || entNum >= MAX_EDICTS ) {
@@ -442,7 +447,7 @@ struct cmodel_s *CG_CModelForEntity( int entNum ) {
 
 	// find the cmodel
 	if( cent->current.solid == SOLID_BMODEL ) { // special value for bmodel
-		cmodel = trap_CM_InlineModel( cent->current.modelindex );
+		cmodel = CG_InlineModel( cent->current.modelindex );
 	} else if( cent->current.solid ) {   // encoded bbox
 		x = 8 * ( cent->current.solid & 31 );
 		zd = 8 * ( ( cent->current.solid >> 5 ) & 31 );
@@ -453,9 +458,9 @@ struct cmodel_s *CG_CModelForEntity( int entNum ) {
 		bmins[2] = -zd;
 		bmaxs[2] = zu;
 		if( cent->type == ET_PLAYER || cent->type == ET_CORPSE ) {
-			cmodel = trap_CM_OctagonModelForBBox( bmins, bmaxs );
+			cmodel = CG_OctagonModelForBBox( bmins, bmaxs );
 		} else {
-			cmodel = trap_CM_ModelForBBox( bmins, bmaxs );
+			cmodel = CG_ModelForBBox( bmins, bmaxs );
 		}
 	}
 
@@ -468,7 +473,7 @@ struct cmodel_s *CG_CModelForEntity( int entNum ) {
 */
 void CG_DrawEntityBox( centity_t *cent ) {
 #ifndef PUBLIC_BUILD
-	struct cmodel_s *cmodel;
+	const cmodel_s *cmodel;
 	vec3_t mins, maxs;
 
 	if( cent->ent.renderfx & RF_VIEWERMODEL ) {
@@ -477,7 +482,7 @@ void CG_DrawEntityBox( centity_t *cent ) {
 
 	cmodel = CG_CModelForEntity( cent->current.number );
 	if( cmodel ) {
-		trap_CM_InlineModelBounds( cmodel, mins, maxs );
+		CG_InlineModelBounds( cmodel, mins, maxs );
 		if( cg_drawEntityBoxes->integer < 2 && cent->current.solid == SOLID_BMODEL ) {
 			return;
 		}
@@ -568,7 +573,7 @@ static void CG_AddLinkedModel( centity_t *cent ) {
 	Matrix3_Copy( cent->ent.axis, ent.axis );
 
 	if( cent->item && ( cent->effects & EF_AMMOBOX ) ) { // ammobox icon hack
-		ent.customShader = trap_R_RegisterPic( cent->item->icon );
+		ent.customShader = R_RegisterPic( cent->item->icon );
 	}
 
 	if( cent->item && ( cent->item->type & IT_WEAPON ) ) {
@@ -876,7 +881,7 @@ void CG_AddFlagModelOnTag( centity_t *cent, byte_vec4_t teamcolor, const char *t
 	}
 
 	memset( &flag, 0, sizeof( entity_t ) );
-	flag.model = trap_R_RegisterModel( PATH_FLAG_MODEL );
+	flag.model = R_RegisterModel( PATH_FLAG_MODEL );
 	if( !flag.model ) {
 		return;
 	}
@@ -941,7 +946,7 @@ void CG_AddFlagModelOnTag( centity_t *cent, byte_vec4_t teamcolor, const char *t
 		CG_AddEntityToScene( &flag );
 	}
 
-	CG_AddLightToScene( flag.origin, 128.0f, 0.0f, teamcolor[0] / 255, teamcolor[1] / 255, teamcolor[2] / 255 );
+	RF_AddLightToScene( flag.origin, 128.0f, 0.0f, teamcolor[0] / 255, teamcolor[1] / 255, teamcolor[2] / 255 );
 
 	// TODO: We have disabled the flag particles trail effects as they were god-awful
 }
@@ -1230,7 +1235,7 @@ static void CG_UpdateItemEnt( centity_t *cent ) {
 		}
 
 		cent->ent.customShader = NULL;
-		cent->ent.customShader = trap_R_RegisterPic( cent->item->simpleitem );
+		cent->ent.customShader = R_RegisterPic( cent->item->simpleitem );
 	} else {
 		cent->ent.rtype = RT_MODEL;
 		cent->ent.frame = cent->current.frame;
@@ -1532,7 +1537,7 @@ static void CG_UpdateVideoSpeakerEnt( void *centp,
 									  unsigned short width, unsigned short channels, const uint8_t *data ) {
 	centity_t *cent = ( centity_t * )centp;
 
-	trap_S_PositionedRawSamples( cent->current.number, 1.0,
+	SoundSystem::Instance()->PositionedRawSamples( cent->current.number, 1.0,
 								 cent->current.attenuation, samples, rate, width, channels, data );
 }
 
@@ -1542,7 +1547,7 @@ static void CG_UpdateVideoSpeakerEnt( void *centp,
 static unsigned int CG_VideoSpeakerEntGetRawSamples( void *centp ) {
 	centity_t *cent = ( centity_t * )centp;
 
-	return trap_S_GetPositionedRawSamplesLength( cent->current.number );
+	return SoundSystem::Instance()->GetPositionedRawSamplesLength( cent->current.number );
 }
 
 /*
@@ -1560,8 +1565,8 @@ static void CG_UpdateVideoSpeakerEnt( centity_t *cent ) {
 	VectorCopy( cent->current.origin, cent->ent.origin );
 	VectorCopy( cent->current.origin2, cent->ent.origin2 );
 
-	shader = trap_R_GetShaderForOrigin( cent->ent.origin2 );
-	cent->cin = trap_R_GetShaderCinematic( shader );
+	shader = RF_GetShaderForOrigin( cent->ent.origin2 );
+	cent->cin = RF_GetShaderCinematic( shader );
 }
 
 /*
@@ -1569,8 +1574,7 @@ static void CG_UpdateVideoSpeakerEnt( centity_t *cent ) {
 */
 static void CG_AddVideoSpeakerEnt( centity_t *cent ) {
 	if( cent->cin ) {
-		trap_CIN_AddRawSamplesListener( cent->cin, cent,
-										CG_UpdateVideoSpeakerEnt, CG_VideoSpeakerEntGetRawSamples );
+		CG_AddRawSamplesListener( cent->cin, cent, CG_UpdateVideoSpeakerEnt, CG_VideoSpeakerEntGetRawSamples );
 	}
 
 	// DEBUG
@@ -1729,14 +1733,14 @@ void CG_SoundEntityNewState( centity_t *cent ) {
 
 	if( attenuation == ATTN_NONE ) {
 		if( cgs.soundPrecache[soundindex] ) {
-			trap_S_StartGlobalSound( cgs.soundPrecache[soundindex], channel & ~CHAN_FIXED, 1.0f );
+			SoundSystem::Instance()->StartGlobalSound( cgs.soundPrecache[soundindex], channel & ~CHAN_FIXED, 1.0f );
 		}
 		return;
 	}
 
 	if( owner ) {
 		if( owner < 0 || owner >= MAX_EDICTS ) {
-			CG_Printf( "CG_SoundEntityNewState: bad owner number" );
+			Com_Printf( "CG_SoundEntityNewState: bad owner number" );
 			return;
 		}
 		if( cg_entities[owner].serverFrame != cg.frame.serverFrame ) {
@@ -1760,11 +1764,11 @@ void CG_SoundEntityNewState( centity_t *cent ) {
 	}
 
 	if( fixed ) {
-		trap_S_StartFixedSound( cgs.soundPrecache[soundindex], cent->current.origin, channel, 1.0f, attenuation );
+		SoundSystem::Instance()->StartFixedSound( cgs.soundPrecache[soundindex], cent->current.origin, channel, 1.0f, attenuation );
 	} else if( ISVIEWERENTITY( owner ) ) {
-		trap_S_StartGlobalSound( cgs.soundPrecache[soundindex], channel, 1.0f );
+		SoundSystem::Instance()->StartGlobalSound( cgs.soundPrecache[soundindex], channel, 1.0f );
 	} else {
-		trap_S_StartRelativeSound( cgs.soundPrecache[soundindex], owner, channel, 1.0f, attenuation );
+		SoundSystem::Instance()->StartRelativeSound( cgs.soundPrecache[soundindex], owner, channel, 1.0f, attenuation );
 	}
 }
 
@@ -1777,7 +1781,7 @@ void CG_EntityLoopSound( entity_state_t *state, float attenuation ) {
 		return;
 	}
 
-	trap_S_AddLoopSound( cgs.soundPrecache[state->sound], state->number, cg_volume_effects->value, ISVIEWERENTITY( state->number ) ? ATTN_NONE : ATTN_IDLE );
+	SoundSystem::Instance()->AddLoopSound( cgs.soundPrecache[state->sound], state->number, cg_volume_effects->value, ISVIEWERENTITY( state->number ) ? ATTN_NONE : ATTN_IDLE );
 }
 
 /*
@@ -1828,7 +1832,7 @@ void CG_AddEntities( void ) {
 				CG_BlasterTrail( cent, cent->ent.origin );
 				CG_EntityLoopSound( state, ATTN_STATIC );
 				// We use relatively large light radius because this projectile moves very fast, so make it noticeable
-				CG_AddLightToScene( cent->ent.origin, 192.0f, 144.0f, 0.9f, 0.7f, 0.0f );
+				RF_AddLightToScene( cent->ent.origin, 192.0f, 144.0f, 0.9f, 0.7f, 0.0f );
 				break;
 
 			case ET_ELECTRO_WEAK:
@@ -1838,37 +1842,37 @@ void CG_AddEntities( void ) {
 				CG_AddGenericEnt( cent );
 				CG_EntityLoopSound( state, ATTN_STATIC );
 				CG_ElectroWeakTrail( cent->trailOrigin, cent->ent.origin, NULL );
-				CG_AddLightToScene( cent->ent.origin, 192.0f, 144.0f, 0.9f, 0.9f, 1.0f );
+				RF_AddLightToScene( cent->ent.origin, 192.0f, 144.0f, 0.9f, 0.9f, 1.0f );
 				break;
 			case ET_ROCKET:
 				CG_AddGenericEnt( cent );
 				CG_ProjectileTrail( cent );
 				CG_EntityLoopSound( state, ATTN_NORM );
-				CG_AddLightToScene( cent->ent.origin, 300.0f, 192.0f, 0.8f, 0.6f, 0 );
+				RF_AddLightToScene( cent->ent.origin, 300.0f, 192.0f, 0.8f, 0.6f, 0 );
 				break;
 			case ET_GRENADE:
 				CG_AddGenericEnt( cent );
 				CG_EntityLoopSound( state, ATTN_STATIC );
 				CG_ProjectileTrail( cent );
-				CG_AddLightToScene( cent->ent.origin, 200.0f, 96.0f, 0.0f, 0.3f, 1.0f );
+				RF_AddLightToScene( cent->ent.origin, 200.0f, 96.0f, 0.0f, 0.3f, 1.0f );
 				break;
 			case ET_PLASMA:
 				CG_AddGenericEnt( cent );
 				CG_EntityLoopSound( state, ATTN_STATIC );
-				CG_AddLightToScene( cent->ent.origin, 0.0f, 72.0f, 0.0f, 1.0f, 0.5f );
+				RF_AddLightToScene( cent->ent.origin, 0.0f, 72.0f, 0.0f, 1.0f, 0.5f );
 				break;
 			case ET_WAVE:
 				CG_AddGenericEnt( cent );
 				CG_EntityLoopSound( state, ATTN_STATIC );
 				CG_WaveCoronaAndTrail( cent, cent->ent.origin );
 				// Add the core light
-				CG_AddLightToScene( cent->ent.origin, 128.0f, 128.0f, 0.0f, 0.3f, 1.0f );
+				RF_AddLightToScene( cent->ent.origin, 128.0f, 128.0f, 0.0f, 0.3f, 1.0f );
 				// Add the corona light
 				// We have initially thought to activate corona light only when corona damage is enabled,
 				// but it is not a good idea since it requires synchronization/prediction
 				// and the projectile gets activated rather fast anyway.
 				// Otherwise high ping players would only see an activated wave.
-				CG_AddLightToScene( cent->ent.origin, 300.0f, 192.0f, 1.0f, 1.0f, 1.0f );
+				RF_AddLightToScene( cent->ent.origin, 300.0f, 192.0f, 1.0f, 1.0f, 1.0f );
 				break;
 
 			case ET_SPRITE:
@@ -1968,7 +1972,7 @@ void CG_AddEntities( void ) {
 
 		// glow if light is set
 		if( canLight && state->light ) {
-			CG_AddLightToScene( cent->ent.origin,
+			RF_AddLightToScene( cent->ent.origin,
 								COLOR_A( state->light ) * 4.0, 0.0f,
 								COLOR_R( state->light ) * ( 1.0 / 255.0 ),
 								COLOR_G( state->light ) * ( 1.0 / 255.0 ),
@@ -2068,7 +2072,7 @@ void CG_LerpEntities( void ) {
 		if( spatialize ) {
 			vec3_t origin, velocity;
 			CG_GetEntitySpatilization( number, origin, velocity );
-			trap_S_SetEntitySpatilization( number, origin, velocity );
+			SoundSystem::Instance()->SetEntitySpatialization( number, origin, velocity );
 		}
 	}
 }
@@ -2200,7 +2204,7 @@ void CG_UpdateEntities( void ) {
 */
 void CG_GetEntitySpatilization( int entNum, vec3_t origin, vec3_t velocity ) {
 	centity_t *cent;
-	struct cmodel_s *cmodel;
+	const cmodel_s *cmodel;
 	vec3_t mins, maxs;
 
 	if( entNum < -1 || entNum >= MAX_EDICTS ) {
@@ -2234,8 +2238,8 @@ void CG_GetEntitySpatilization( int entNum, vec3_t origin, vec3_t velocity ) {
 
 	// bmodel
 	if( origin != NULL ) {
-		cmodel = trap_CM_InlineModel( cent->current.modelindex );
-		trap_CM_InlineModelBounds( cmodel, mins, maxs );
+		cmodel = CG_InlineModel( cent->current.modelindex );
+		CG_InlineModelBounds( cmodel, mins, maxs );
 		VectorAdd( maxs, mins, origin );
 		VectorMA( cent->ent.origin, 0.5f, origin, origin );
 	}

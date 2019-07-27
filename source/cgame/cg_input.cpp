@@ -23,6 +23,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
 #include "cg_local.h"
+#include "../qcommon/qcommon.h"
+#include "../client/input.h"
+#include "../client/keys.h"
 
 static int64_t cg_inputTime;
 static int cg_inputFrameTime;
@@ -81,7 +84,7 @@ static void CG_KeyDown( kbutton_t *b ) {
 	int k;
 	const char *c;
 
-	c = trap_Cmd_Argv( 1 );
+	c = Cmd_Argv( 1 );
 	if( c[0] ) {
 		k = atoi( c );
 	} else {
@@ -106,7 +109,7 @@ static void CG_KeyDown( kbutton_t *b ) {
 
 	}
 	// save timestamp
-	c = trap_Cmd_Argv( 2 );
+	c = Cmd_Argv( 2 );
 	b->downtime = atoi( c );
 	if( !b->downtime ) {
 		b->downtime = cg_inputTime - 100;
@@ -123,7 +126,7 @@ static void CG_KeyUp( kbutton_t *b ) {
 	const char *c;
 	int uptime;
 
-	c = trap_Cmd_Argv( 1 );
+	c = Cmd_Argv( 1 );
 	if( c[0] ) {
 		k = atoi( c );
 	} else { // typed manually at the console, assume for unsticking, so clear all
@@ -148,7 +151,7 @@ static void CG_KeyUp( kbutton_t *b ) {
 
 	}
 	// save timestamp
-	c = trap_Cmd_Argv( 2 );
+	c = Cmd_Argv( 2 );
 	uptime = atoi( c );
 	if( uptime ) {
 		b->msec += uptime - b->downtime;
@@ -459,15 +462,15 @@ static void CG_GamepadFrame( void ) {
 	// Add acceleration to the gamepad look above the acceleration threshold.
 
 	vec4_t sticks;
-	trap_IN_GetThumbsticks( sticks );
+	IN_GetThumbsticks( sticks );
 
 	int axes = ( cg_gamepad_swapSticks->integer ? 0 : 2 );
 
 	if( cg_gamepad_accelMax->value < 0.0f ) {
-		trap_Cvar_SetValue( cg_gamepad_accelMax->name, 0.0f );
+		Cvar_SetValue( cg_gamepad_accelMax->name, 0.0f );
 	}
 	if( cg_gamepad_accelSpeed->value < 0.0f ) {
-		trap_Cvar_SetValue( cg_gamepad_accelSpeed->name, 0.0f );
+		Cvar_SetValue( cg_gamepad_accelSpeed->name, 0.0f );
 	}
 
 	float accelMax = cg_gamepad_accelMax->value + 1.0f;
@@ -498,15 +501,15 @@ static void CG_GamepadFrame( void ) {
  */
 static void CG_AddGamepadViewAngles( vec3_t viewAngles ) {
 	vec4_t sticks;
-	trap_IN_GetThumbsticks( sticks );
+	IN_GetThumbsticks( sticks );
 
 	int axes = ( cg_gamepad_swapSticks->integer ? 0 : 2 );
 
 	if( ( cg_gamepad_yawThres->value <= 0.0f ) || ( cg_gamepad_yawThres->value >= 1.0f ) ) {
-		trap_Cvar_Set( cg_gamepad_yawThres->name, cg_gamepad_yawThres->dvalue );
+		Cvar_Set( cg_gamepad_yawThres->name, cg_gamepad_yawThres->dvalue );
 	}
 	if( ( cg_gamepad_pitchThres->value <= 0.0f ) || ( cg_gamepad_pitchThres->value >= 1.0f ) ) {
-		trap_Cvar_Set( cg_gamepad_pitchThres->name, cg_gamepad_pitchThres->dvalue );
+		Cvar_Set( cg_gamepad_pitchThres->name, cg_gamepad_pitchThres->dvalue );
 	}
 
 	float axisValue = sticks[axes];
@@ -536,7 +539,7 @@ static void CG_AddGamepadViewAngles( vec3_t viewAngles ) {
  */
 static void CG_AddGamepadMovement( vec3_t movement ) {
 	vec4_t sticks;
-	trap_IN_GetThumbsticks( sticks );
+	IN_GetThumbsticks( sticks );
 
 	int axes = ( cg_gamepad_swapSticks->integer ? 2 : 0 );
 
@@ -697,7 +700,7 @@ void CG_TouchFrame( void ) {
 	if( viewpad.touch >= 0 ) {
 		if( cg_touch_lookDecel->modified ) {
 			if( cg_touch_lookDecel->value < 0.0f ) {
-				trap_Cvar_Set( cg_touch_lookDecel->name, cg_touch_lookDecel->dvalue );
+				Cvar_Set( cg_touch_lookDecel->name, cg_touch_lookDecel->dvalue );
 			}
 			cg_touch_lookDecel->modified = false;
 		}
@@ -760,7 +763,7 @@ static void CG_AddTouchViewAngles( vec3_t viewAngles ) {
 	if( viewpad.touch >= 0 ) {
 		if( cg_touch_lookThres->modified ) {
 			if( cg_touch_lookThres->value < 0.0f ) {
-				trap_Cvar_Set( cg_touch_lookThres->name, cg_touch_lookThres->dvalue );
+				Cvar_Set( cg_touch_lookThres->name, cg_touch_lookThres->dvalue );
 			}
 			cg_touch_lookThres->modified = false;
 		}
@@ -798,13 +801,13 @@ void CG_GetTouchMovement( vec3_t movement ) {
 	if( movepad.touch >= 0 ) {
 		if( cg_touch_moveThres->modified ) {
 			if( cg_touch_moveThres->value < 0.0f ) {
-				trap_Cvar_Set( cg_touch_moveThres->name, cg_touch_moveThres->dvalue );
+				Cvar_Set( cg_touch_moveThres->name, cg_touch_moveThres->dvalue );
 			}
 			cg_touch_moveThres->modified = false;
 		}
 		if( cg_touch_strafeThres->modified ) {
 			if( cg_touch_strafeThres->value < 0.0f ) {
-				trap_Cvar_Set( cg_touch_strafeThres->name, cg_touch_strafeThres->dvalue );
+				Cvar_Set( cg_touch_strafeThres->name, cg_touch_strafeThres->dvalue );
 			}
 			cg_touch_strafeThres->modified = false;
 		}
@@ -888,124 +891,124 @@ static void CG_CenterView( void ) {
 * CG_InputInit
 */
 void CG_InitInput( void ) {
-	trap_Cmd_AddCommand( "+moveup", IN_UpDown );
-	trap_Cmd_AddCommand( "-moveup", IN_UpUp );
-	trap_Cmd_AddCommand( "+movedown", IN_DownDown );
-	trap_Cmd_AddCommand( "-movedown", IN_DownUp );
-	trap_Cmd_AddCommand( "+left", IN_LeftDown );
-	trap_Cmd_AddCommand( "-left", IN_LeftUp );
-	trap_Cmd_AddCommand( "+right", IN_RightDown );
-	trap_Cmd_AddCommand( "-right", IN_RightUp );
-	trap_Cmd_AddCommand( "+forward", IN_ForwardDown );
-	trap_Cmd_AddCommand( "-forward", IN_ForwardUp );
-	trap_Cmd_AddCommand( "+back", IN_BackDown );
-	trap_Cmd_AddCommand( "-back", IN_BackUp );
-	trap_Cmd_AddCommand( "+lookup", IN_LookupDown );
-	trap_Cmd_AddCommand( "-lookup", IN_LookupUp );
-	trap_Cmd_AddCommand( "+lookdown", IN_LookdownDown );
-	trap_Cmd_AddCommand( "-lookdown", IN_LookdownUp );
-	trap_Cmd_AddCommand( "+strafe", IN_StrafeDown );
-	trap_Cmd_AddCommand( "-strafe", IN_StrafeUp );
-	trap_Cmd_AddCommand( "+moveleft", IN_MoveleftDown );
-	trap_Cmd_AddCommand( "-moveleft", IN_MoveleftUp );
-	trap_Cmd_AddCommand( "+moveright", IN_MoverightDown );
-	trap_Cmd_AddCommand( "-moveright", IN_MoverightUp );
-	trap_Cmd_AddCommand( "+speed", IN_SpeedDown );
-	trap_Cmd_AddCommand( "-speed", IN_SpeedUp );
-	trap_Cmd_AddCommand( "+attack", IN_AttackDown );
-	trap_Cmd_AddCommand( "-attack", IN_AttackUp );
-	trap_Cmd_AddCommand( "+use", IN_UseDown );
-	trap_Cmd_AddCommand( "-use", IN_UseUp );
-	trap_Cmd_AddCommand( "+klook", IN_KLookDown );
-	trap_Cmd_AddCommand( "-klook", IN_KLookUp );
+	Cmd_AddCommand( "+moveup", IN_UpDown );
+	Cmd_AddCommand( "-moveup", IN_UpUp );
+	Cmd_AddCommand( "+movedown", IN_DownDown );
+	Cmd_AddCommand( "-movedown", IN_DownUp );
+	Cmd_AddCommand( "+left", IN_LeftDown );
+	Cmd_AddCommand( "-left", IN_LeftUp );
+	Cmd_AddCommand( "+right", IN_RightDown );
+	Cmd_AddCommand( "-right", IN_RightUp );
+	Cmd_AddCommand( "+forward", IN_ForwardDown );
+	Cmd_AddCommand( "-forward", IN_ForwardUp );
+	Cmd_AddCommand( "+back", IN_BackDown );
+	Cmd_AddCommand( "-back", IN_BackUp );
+	Cmd_AddCommand( "+lookup", IN_LookupDown );
+	Cmd_AddCommand( "-lookup", IN_LookupUp );
+	Cmd_AddCommand( "+lookdown", IN_LookdownDown );
+	Cmd_AddCommand( "-lookdown", IN_LookdownUp );
+	Cmd_AddCommand( "+strafe", IN_StrafeDown );
+	Cmd_AddCommand( "-strafe", IN_StrafeUp );
+	Cmd_AddCommand( "+moveleft", IN_MoveleftDown );
+	Cmd_AddCommand( "-moveleft", IN_MoveleftUp );
+	Cmd_AddCommand( "+moveright", IN_MoverightDown );
+	Cmd_AddCommand( "-moveright", IN_MoverightUp );
+	Cmd_AddCommand( "+speed", IN_SpeedDown );
+	Cmd_AddCommand( "-speed", IN_SpeedUp );
+	Cmd_AddCommand( "+attack", IN_AttackDown );
+	Cmd_AddCommand( "-attack", IN_AttackUp );
+	Cmd_AddCommand( "+use", IN_UseDown );
+	Cmd_AddCommand( "-use", IN_UseUp );
+	Cmd_AddCommand( "+klook", IN_KLookDown );
+	Cmd_AddCommand( "-klook", IN_KLookUp );
 	// wsw
-	trap_Cmd_AddCommand( "+special", IN_SpecialDown );
-	trap_Cmd_AddCommand( "-special", IN_SpecialUp );
-	trap_Cmd_AddCommand( "+zoom", IN_ZoomDown );
-	trap_Cmd_AddCommand( "-zoom", IN_ZoomUp );
+	Cmd_AddCommand( "+special", IN_SpecialDown );
+	Cmd_AddCommand( "-special", IN_SpecialUp );
+	Cmd_AddCommand( "+zoom", IN_ZoomDown );
+	Cmd_AddCommand( "-zoom", IN_ZoomUp );
 
-	trap_Cmd_AddCommand( "centerview", CG_CenterView );
+	Cmd_AddCommand( "centerview", CG_CenterView );
 
-	cl_yawspeed =  trap_Cvar_Get( "cl_yawspeed", "140", 0 );
-	cl_pitchspeed = trap_Cvar_Get( "cl_pitchspeed", "150", 0 );
-	cl_anglespeedkey = trap_Cvar_Get( "cl_anglespeedkey", "1.5", 0 );
+	cl_yawspeed =  Cvar_Get( "cl_yawspeed", "140", 0 );
+	cl_pitchspeed = Cvar_Get( "cl_pitchspeed", "150", 0 );
+	cl_anglespeedkey = Cvar_Get( "cl_anglespeedkey", "1.5", 0 );
 
-	cl_run = trap_Cvar_Get( "cl_run", "1", CVAR_ARCHIVE );
+	cl_run = Cvar_Get( "cl_run", "1", CVAR_ARCHIVE );
 
-	sensitivity = trap_Cvar_Get( "sensitivity", "3", CVAR_ARCHIVE );
-	zoomsens = trap_Cvar_Get( "zoomsens", "0", CVAR_ARCHIVE );
-	m_accel = trap_Cvar_Get( "m_accel", "0", CVAR_ARCHIVE );
-	m_accelStyle = trap_Cvar_Get( "m_accelStyle", "0", CVAR_ARCHIVE );
-	m_accelOffset = trap_Cvar_Get( "m_accelOffset", "0", CVAR_ARCHIVE );
-	m_accelPow = trap_Cvar_Get( "m_accelPow", "2", CVAR_ARCHIVE );
-	m_filter = trap_Cvar_Get( "m_filter", "0", CVAR_ARCHIVE );
-	m_pitch = trap_Cvar_Get( "m_pitch", "0.022", CVAR_ARCHIVE );
-	m_yaw = trap_Cvar_Get( "m_yaw", "0.022", CVAR_ARCHIVE );
-	m_sensCap = trap_Cvar_Get( "m_sensCap", "0", CVAR_ARCHIVE );
+	sensitivity = Cvar_Get( "sensitivity", "3", CVAR_ARCHIVE );
+	zoomsens = Cvar_Get( "zoomsens", "0", CVAR_ARCHIVE );
+	m_accel = Cvar_Get( "m_accel", "0", CVAR_ARCHIVE );
+	m_accelStyle = Cvar_Get( "m_accelStyle", "0", CVAR_ARCHIVE );
+	m_accelOffset = Cvar_Get( "m_accelOffset", "0", CVAR_ARCHIVE );
+	m_accelPow = Cvar_Get( "m_accelPow", "2", CVAR_ARCHIVE );
+	m_filter = Cvar_Get( "m_filter", "0", CVAR_ARCHIVE );
+	m_pitch = Cvar_Get( "m_pitch", "0.022", CVAR_ARCHIVE );
+	m_yaw = Cvar_Get( "m_yaw", "0.022", CVAR_ARCHIVE );
+	m_sensCap = Cvar_Get( "m_sensCap", "0", CVAR_ARCHIVE );
 
-	cg_gamepad_moveThres = trap_Cvar_Get( "cg_gamepad_moveThres", "0.239", CVAR_ARCHIVE );
-	cg_gamepad_runThres = trap_Cvar_Get( "cg_gamepad_runThres", "0.75", CVAR_ARCHIVE );
-	cg_gamepad_strafeThres = trap_Cvar_Get( "cg_gamepad_strafeThres", "0.239", CVAR_ARCHIVE );
-	cg_gamepad_strafeRunThres = trap_Cvar_Get( "cg_gamepad_strafeRunThres", "0.45", CVAR_ARCHIVE );
-	cg_gamepad_pitchThres = trap_Cvar_Get( "cg_gamepad_pitchThres", "0.265", CVAR_ARCHIVE );
-	cg_gamepad_yawThres = trap_Cvar_Get( "cg_gamepad_yawThres", "0.265", CVAR_ARCHIVE );
-	cg_gamepad_pitchSpeed = trap_Cvar_Get( "cg_gamepad_pitchSpeed", "240", CVAR_ARCHIVE );
-	cg_gamepad_yawSpeed = trap_Cvar_Get( "cg_gamepad_yawSpeed", "260", CVAR_ARCHIVE );
-	cg_gamepad_pitchInvert = trap_Cvar_Get( "cg_gamepad_pitchInvert", "0", CVAR_ARCHIVE );
-	cg_gamepad_accelMax = trap_Cvar_Get( "cg_gamepad_accelMax", "2", CVAR_ARCHIVE );
-	cg_gamepad_accelSpeed = trap_Cvar_Get( "cg_gamepad_accelSpeed", "3", CVAR_ARCHIVE );
-	cg_gamepad_accelThres = trap_Cvar_Get( "cg_gamepad_accelThres", "0.9", CVAR_ARCHIVE );
-	cg_gamepad_swapSticks = trap_Cvar_Get( "cg_gamepad_swapSticks", "0", CVAR_ARCHIVE );
+	cg_gamepad_moveThres = Cvar_Get( "cg_gamepad_moveThres", "0.239", CVAR_ARCHIVE );
+	cg_gamepad_runThres = Cvar_Get( "cg_gamepad_runThres", "0.75", CVAR_ARCHIVE );
+	cg_gamepad_strafeThres = Cvar_Get( "cg_gamepad_strafeThres", "0.239", CVAR_ARCHIVE );
+	cg_gamepad_strafeRunThres = Cvar_Get( "cg_gamepad_strafeRunThres", "0.45", CVAR_ARCHIVE );
+	cg_gamepad_pitchThres = Cvar_Get( "cg_gamepad_pitchThres", "0.265", CVAR_ARCHIVE );
+	cg_gamepad_yawThres = Cvar_Get( "cg_gamepad_yawThres", "0.265", CVAR_ARCHIVE );
+	cg_gamepad_pitchSpeed = Cvar_Get( "cg_gamepad_pitchSpeed", "240", CVAR_ARCHIVE );
+	cg_gamepad_yawSpeed = Cvar_Get( "cg_gamepad_yawSpeed", "260", CVAR_ARCHIVE );
+	cg_gamepad_pitchInvert = Cvar_Get( "cg_gamepad_pitchInvert", "0", CVAR_ARCHIVE );
+	cg_gamepad_accelMax = Cvar_Get( "cg_gamepad_accelMax", "2", CVAR_ARCHIVE );
+	cg_gamepad_accelSpeed = Cvar_Get( "cg_gamepad_accelSpeed", "3", CVAR_ARCHIVE );
+	cg_gamepad_accelThres = Cvar_Get( "cg_gamepad_accelThres", "0.9", CVAR_ARCHIVE );
+	cg_gamepad_swapSticks = Cvar_Get( "cg_gamepad_swapSticks", "0", CVAR_ARCHIVE );
 
-	cg_touch_moveThres = trap_Cvar_Get( "cg_touch_moveThres", "24", CVAR_ARCHIVE );
-	cg_touch_strafeThres = trap_Cvar_Get( "cg_touch_strafeThres", "32", CVAR_ARCHIVE );
-	cg_touch_lookThres = trap_Cvar_Get( "cg_touch_lookThres", "5", CVAR_ARCHIVE );
-	cg_touch_lookSens = trap_Cvar_Get( "cg_touch_lookSens", "9", CVAR_ARCHIVE );
-	cg_touch_lookInvert = trap_Cvar_Get( "cg_touch_lookInvert", "0", CVAR_ARCHIVE );
-	cg_touch_lookDecel = trap_Cvar_Get( "cg_touch_lookDecel", "8.5", CVAR_ARCHIVE );
+	cg_touch_moveThres = Cvar_Get( "cg_touch_moveThres", "24", CVAR_ARCHIVE );
+	cg_touch_strafeThres = Cvar_Get( "cg_touch_strafeThres", "32", CVAR_ARCHIVE );
+	cg_touch_lookThres = Cvar_Get( "cg_touch_lookThres", "5", CVAR_ARCHIVE );
+	cg_touch_lookSens = Cvar_Get( "cg_touch_lookSens", "9", CVAR_ARCHIVE );
+	cg_touch_lookInvert = Cvar_Get( "cg_touch_lookInvert", "0", CVAR_ARCHIVE );
+	cg_touch_lookDecel = Cvar_Get( "cg_touch_lookDecel", "8.5", CVAR_ARCHIVE );
 }
 
 /*
 * CG_ShutdownInput
 */
 void CG_ShutdownInput( void ) {
-	trap_Cmd_RemoveCommand( "+moveup" );
-	trap_Cmd_RemoveCommand( "-moveup" );
-	trap_Cmd_RemoveCommand( "+movedown" );
-	trap_Cmd_RemoveCommand( "-movedown" );
-	trap_Cmd_RemoveCommand( "+left" );
-	trap_Cmd_RemoveCommand( "-left" );
-	trap_Cmd_RemoveCommand( "+right" );
-	trap_Cmd_RemoveCommand( "-right" );
-	trap_Cmd_RemoveCommand( "+forward" );
-	trap_Cmd_RemoveCommand( "-forward" );
-	trap_Cmd_RemoveCommand( "+back" );
-	trap_Cmd_RemoveCommand( "-back" );
-	trap_Cmd_RemoveCommand( "+lookup" );
-	trap_Cmd_RemoveCommand( "-lookup" );
-	trap_Cmd_RemoveCommand( "+lookdown" );
-	trap_Cmd_RemoveCommand( "-lookdown" );
-	trap_Cmd_RemoveCommand( "+strafe" );
-	trap_Cmd_RemoveCommand( "-strafe" );
-	trap_Cmd_RemoveCommand( "+moveleft" );
-	trap_Cmd_RemoveCommand( "-moveleft" );
-	trap_Cmd_RemoveCommand( "+moveright" );
-	trap_Cmd_RemoveCommand( "-moveright" );
-	trap_Cmd_RemoveCommand( "+speed" );
-	trap_Cmd_RemoveCommand( "-speed" );
-	trap_Cmd_RemoveCommand( "+attack" );
-	trap_Cmd_RemoveCommand( "-attack" );
-	trap_Cmd_RemoveCommand( "+use" );
-	trap_Cmd_RemoveCommand( "-use" );
-	trap_Cmd_RemoveCommand( "+klook" );
-	trap_Cmd_RemoveCommand( "-klook" );
+	Cmd_RemoveCommand( "+moveup" );
+	Cmd_RemoveCommand( "-moveup" );
+	Cmd_RemoveCommand( "+movedown" );
+	Cmd_RemoveCommand( "-movedown" );
+	Cmd_RemoveCommand( "+left" );
+	Cmd_RemoveCommand( "-left" );
+	Cmd_RemoveCommand( "+right" );
+	Cmd_RemoveCommand( "-right" );
+	Cmd_RemoveCommand( "+forward" );
+	Cmd_RemoveCommand( "-forward" );
+	Cmd_RemoveCommand( "+back" );
+	Cmd_RemoveCommand( "-back" );
+	Cmd_RemoveCommand( "+lookup" );
+	Cmd_RemoveCommand( "-lookup" );
+	Cmd_RemoveCommand( "+lookdown" );
+	Cmd_RemoveCommand( "-lookdown" );
+	Cmd_RemoveCommand( "+strafe" );
+	Cmd_RemoveCommand( "-strafe" );
+	Cmd_RemoveCommand( "+moveleft" );
+	Cmd_RemoveCommand( "-moveleft" );
+	Cmd_RemoveCommand( "+moveright" );
+	Cmd_RemoveCommand( "-moveright" );
+	Cmd_RemoveCommand( "+speed" );
+	Cmd_RemoveCommand( "-speed" );
+	Cmd_RemoveCommand( "+attack" );
+	Cmd_RemoveCommand( "-attack" );
+	Cmd_RemoveCommand( "+use" );
+	Cmd_RemoveCommand( "-use" );
+	Cmd_RemoveCommand( "+klook" );
+	Cmd_RemoveCommand( "-klook" );
 	// wsw
-	trap_Cmd_RemoveCommand( "+special" );
-	trap_Cmd_RemoveCommand( "-special" );
-	trap_Cmd_RemoveCommand( "+zoom" );
-	trap_Cmd_RemoveCommand( "-zoom" );
+	Cmd_RemoveCommand( "+special" );
+	Cmd_RemoveCommand( "-special" );
+	Cmd_RemoveCommand( "+zoom" );
+	Cmd_RemoveCommand( "-zoom" );
 
-	trap_Cmd_RemoveCommand( "centerview" );
+	Cmd_RemoveCommand( "centerview" );
 }
 
 /*
@@ -1073,7 +1076,7 @@ void CG_AddMovement( vec3_t movement ) {
 * CG_InputFrame
 */
 void CG_InputFrame( int frameTime ) {
-	cg_inputTime = trap_Milliseconds();
+	cg_inputTime = Sys_Milliseconds();
 	cg_inputFrameTime = frameTime;
 
 	CG_GamepadFrame();
@@ -1105,7 +1108,7 @@ void CG_GetBoundKeysString( const char *cmd, char *keys, size_t keysSize ) {
 	memset( charKeys, 0, sizeof( charKeys ) );
 
 	for( key = 0; key < 256; key++ ) {
-		bind = trap_Key_GetBindingBuf( key );
+		bind = Key_GetBindingBuf( key );
 		if( !bind || Q_stricmp( bind, cmd ) ) {
 			continue;
 		}
@@ -1114,7 +1117,7 @@ void CG_GetBoundKeysString( const char *cmd, char *keys, size_t keysSize ) {
 			charKeys[numKeys][0] = key - ( 'a' - 'A' );
 			keyNames[numKeys] = charKeys[numKeys];
 		} else {
-			keyNames[numKeys] = trap_Key_KeynumToString( key );
+			keyNames[numKeys] = Key_KeynumToString( key );
 		}
 
 		numKeys++;

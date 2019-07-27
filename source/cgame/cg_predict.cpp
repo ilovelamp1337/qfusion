@@ -94,12 +94,12 @@ void CG_CheckPredictionError( void ) {
 	// save the prediction error for interpolation
 	if( abs( delta[0] ) > 128 || abs( delta[1] ) > 128 || abs( delta[2] ) > 128 ) {
 		if( cg_showMiss->integer ) {
-			CG_Printf( "prediction miss on %" PRIi64 ": %i\n", cg.frame.serverFrame, abs( delta[0] ) + abs( delta[1] ) + abs( delta[2] ) );
+			Com_Printf( "prediction miss on %" PRIi64 ": %i\n", cg.frame.serverFrame, abs( delta[0] ) + abs( delta[1] ) + abs( delta[2] ) );
 		}
 		VectorClear( cg.predictionError );          // a teleport or something
 	} else {
 		if( cg_showMiss->integer && ( delta[0] || delta[1] || delta[2] ) ) {
-			CG_Printf( "prediction miss on %" PRIi64" : %i\n", cg.frame.serverFrame, abs( delta[0] ) + abs( delta[1] ) + abs( delta[2] ) );
+			Com_Printf( "prediction miss on %" PRIi64" : %i\n", cg.frame.serverFrame, abs( delta[0] ) + abs( delta[1] ) + abs( delta[2] ) );
 		}
 		VectorCopy( cg.frame.playerState.pmove.origin, cg.predictedOrigins[frame] );
 		VectorCopy( delta, cg.predictionError ); // save for error interpolation
@@ -156,7 +156,7 @@ void CG_BuildSolidList( void ) {
 */
 static bool CG_ClipEntityContact( const vec3_t origin, const vec3_t mins, const vec3_t maxs, int entNum ) {
 	centity_t *cent;
-	struct cmodel_s *cmodel;
+	const cmodel_s *cmodel;
 	trace_t tr;
 	vec3_t absmins, absmaxs;
 	vec3_t entorigin, entangles;
@@ -193,7 +193,7 @@ static bool CG_ClipEntityContact( const vec3_t origin, const vec3_t mins, const 
 	// convert the box to compare to absolute coordinates
 	VectorAdd( origin, mins, absmins );
 	VectorAdd( origin, maxs, absmaxs );
-	trap_CM_TransformedBoxTrace( &tr, vec3_origin, vec3_origin, absmins, absmaxs, cmodel, MASK_ALL, entorigin, entangles );
+	CG_TransformedBoxTrace( &tr, vec3_origin, vec3_origin, absmins, absmaxs, cmodel, MASK_ALL, entorigin, entangles );
 	return tr.startsolid == true || tr.allsolid == true;
 }
 
@@ -231,7 +231,7 @@ static void CG_ClipMoveToEntities( const vec3_t start, const vec3_t mins, const 
 	trace_t trace;
 	vec3_t origin, angles;
 	entity_state_t *ent;
-	struct cmodel_s *cmodel;
+	const cmodel_s *cmodel;
 	vec3_t bmins, bmaxs;
 	int64_t serverTime = cg.frame.serverTime;
 
@@ -246,7 +246,7 @@ static void CG_ClipMoveToEntities( const vec3_t start, const vec3_t mins, const 
 		}
 
 		if( ent->solid == SOLID_BMODEL ) { // special value for bmodel
-			cmodel = trap_CM_InlineModel( ent->modelindex );
+			cmodel = CG_InlineModel( ent->modelindex );
 			if( !cmodel ) {
 				continue;
 			}
@@ -272,13 +272,13 @@ static void CG_ClipMoveToEntities( const vec3_t start, const vec3_t mins, const 
 			VectorClear( angles ); // boxes don't rotate
 
 			if( ent->type == ET_PLAYER || ent->type == ET_CORPSE ) {
-				cmodel = trap_CM_OctagonModelForBBox( bmins, bmaxs );
+				cmodel = CG_OctagonModelForBBox( bmins, bmaxs );
 			} else {
-				cmodel = trap_CM_ModelForBBox( bmins, bmaxs );
+				cmodel = CG_ModelForBBox( bmins, bmaxs );
 			}
 		}
 
-		trap_CM_TransformedBoxTrace( &trace, (vec_t *)start, (vec_t *)end, (vec_t *)mins, (vec_t *)maxs, cmodel, contentmask, origin, angles );
+		CG_TransformedBoxTrace( &trace, (vec_t *)start, (vec_t *)end, (vec_t *)mins, (vec_t *)maxs, cmodel, contentmask, origin, angles );
 		if( trace.allsolid || trace.fraction < tr->fraction ) {
 			trace.ent = ent->number;
 			*tr = trace;
@@ -297,7 +297,7 @@ static void CG_ClipMoveToEntities( const vec3_t start, const vec3_t mins, const 
 */
 void CG_Trace( trace_t *t, const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end, int ignore, int contentmask ) {
 	// check against world
-	trap_CM_TransformedBoxTrace( t, start, end, mins, maxs, NULL, contentmask, NULL, NULL );
+	CG_TransformedBoxTrace( t, start, end, mins, maxs, NULL, contentmask, NULL, NULL );
 	t->ent = t->fraction < 1.0 ? 0 : -1; // world entity is 0
 	if( t->fraction == 0 ) {
 		return; // blocked by the world
@@ -314,10 +314,10 @@ void CG_Trace( trace_t *t, const vec3_t start, const vec3_t mins, const vec3_t m
 int CG_PointContents( const vec3_t point ) {
 	int i;
 	entity_state_t *ent;
-	struct cmodel_s *cmodel;
+	const cmodel_s *cmodel;
 	int contents;
 
-	contents = trap_CM_TransformedPointContents( (vec_t *)point, NULL, NULL, NULL );
+	contents = CG_TransformedPointContents( (vec_t *)point, NULL, NULL, NULL );
 
 	for( i = 0; i < cg_numSolids; i++ ) {
 		ent = cg_solidList[i];
@@ -325,9 +325,9 @@ int CG_PointContents( const vec3_t point ) {
 			continue;
 		}
 
-		cmodel = trap_CM_InlineModel( ent->modelindex );
+		cmodel = CG_InlineModel( ent->modelindex );
 		if( cmodel ) {
-			contents |= trap_CM_TransformedPointContents( (vec_t *)point, cmodel, ent->origin, ent->angles );
+			contents |= CG_TransformedPointContents( (vec_t *)point, cmodel, ent->origin, ent->angles );
 		}
 	}
 
@@ -369,7 +369,7 @@ static void CG_PredictSmoothSteps( void ) {
 	cg.predictedStepTime = 0;
 	cg.predictedStep = 0;
 
-	trap_NET_GetCurrentState( NULL, &outgoing, NULL );
+	NET_GetCurrentState( NULL, &outgoing, NULL );
 
 	i = outgoing;
 	while( predictiontime < PREDICTED_STEP_TIME ) {
@@ -378,7 +378,7 @@ static void CG_PredictSmoothSteps( void ) {
 		}
 
 		frame = i & CMD_MASK;
-		trap_NET_GetUserCmd( frame, &cmd );
+		NET_GetUserCmd( frame, &cmd );
 		predictiontime += cmd.msec;
 		i--;
 	}
@@ -386,7 +386,7 @@ static void CG_PredictSmoothSteps( void ) {
 	// run frames
 	while( ++i <= outgoing ) {
 		frame = i & CMD_MASK;
-		trap_NET_GetUserCmd( frame, &cmd );
+		NET_GetUserCmd( frame, &cmd );
 		virtualtime += cmd.msec;
 
 		if( predictedSteps[frame] ) {
@@ -405,7 +405,7 @@ void CG_PredictMovement( void ) {
 	int64_t frame;
 	pmove_t pm;
 
-	trap_NET_GetCurrentState( NULL, &ucmdHead, NULL );
+	NET_GetCurrentState( NULL, &ucmdHead, NULL );
 	ucmdExecuted = cg.frame.ucmdExecuted;
 
 	if( !cg_predict_optimize->integer || ( ucmdHead - cg.predictFrom >= CMD_BACKUP ) ) {
@@ -425,7 +425,7 @@ void CG_PredictMovement( void ) {
 	// if we are too far out of date, just freeze
 	if( ucmdHead - ucmdExecuted >= CMD_BACKUP ) {
 		if( cg_showMiss->integer ) {
-			CG_Printf( "exceeded CMD_BACKUP\n" );
+			Com_Printf( "exceeded CMD_BACKUP\n" );
 		}
 
 		cg.predictingTimeStamp = cg.time;
@@ -442,7 +442,7 @@ void CG_PredictMovement( void ) {
 	// run frames
 	while( ++ucmdExecuted <= ucmdHead ) {
 		frame = ucmdExecuted & CMD_MASK;
-		trap_NET_GetUserCmd( frame, &pm.cmd );
+		NET_GetUserCmd( frame, &pm.cmd );
 
 		ucmdReady = ( pm.cmd.serverTimeStamp != 0 );
 		if( ucmdReady ) {

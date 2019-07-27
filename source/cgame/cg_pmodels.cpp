@@ -30,6 +30,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // by Jalisk0
 
 #include "cg_local.h"
+#include "../qcommon/qcommon.h"
+#include "../ref_gl/r_frontend.h"
 
 pmodel_t cg_entPModels[MAX_EDICTS];
 pmodelinfo_t *cg_PModelInfos;
@@ -43,6 +45,16 @@ pmodelinfo_t *cg_PModelInfos;
 */
 void CG_PModelsInit( void ) {
 	memset( cg_entPModels, 0, sizeof( cg_entPModels ) );
+}
+
+void CG_PModelsShutdown() {
+	pmodelinfo_t *nextInfo;
+	for( pmodelinfo_t *info = cg_PModelInfos; info; info = nextInfo ) {
+		nextInfo = info->next;
+		CG_Free( info );
+	}
+
+	cg_PModelInfos = nullptr;
 }
 
 /*
@@ -86,14 +98,14 @@ static void CG_ParseRotationBone( pmodelinfo_t *pmodelinfo, char *token, int pmp
 	boneNumber = CG_FindBoneNum( CG_SkeletonForModel( pmodelinfo->model ), token );
 	if( boneNumber < 0 ) {
 		if( cg_debugPlayerModels->integer ) {
-			CG_Printf( "CG_ParseRotationBone: No such bone name %s\n", token );
+			Com_Printf( "CG_ParseRotationBone: No such bone name %s\n", token );
 		}
 		return;
 	}
 
 	//register it into pmodelinfo
 	if( cg_debugPlayerModels->integer ) {
-		CG_Printf( "Script: CG_ParseRotationBone: %s is %i\n", token, boneNumber );
+		Com_Printf( "Script: CG_ParseRotationBone: %s is %i\n", token, boneNumber );
 	}
 	pmodelinfo->rotator[pmpart][pmodelinfo->numRotators[pmpart]] = boneNumber;
 	pmodelinfo->numRotators[pmpart]++;
@@ -132,7 +144,7 @@ static void CG_ParseTagMask( struct model_s *model, int bonenum, char *name, flo
 	skel->tagmasks = tagmask;
 
 	if( cg_debugPlayerModels->integer ) {
-		CG_Printf( "Added Tagmask: %s -> %s\n", tagmask->tagname, tagmask->bonename );
+		Com_Printf( "Added Tagmask: %s -> %s\n", tagmask->tagname, tagmask->bonename );
 	}
 }
 
@@ -171,18 +183,18 @@ static bool CG_ParseAnimationScript( pmodelinfo_t *pmodelinfo, char *filename ) 
 	}
 
 	// load the file
-	length = trap_FS_FOpenFile( filename, &filenum, FS_READ );
+	length = FS_FOpenFile( filename, &filenum, FS_READ );
 	if( length == -1 ) {
-		CG_Printf( "Couldn't find animation script: %s\n", filename );
+		Com_Printf( "Couldn't find animation script: %s\n", filename );
 		return false;
 	}
 
 	buf = ( uint8_t * )CG_Malloc( length + 1 );
-	length = trap_FS_Read( buf, length, filenum );
-	trap_FS_FCloseFile( filenum );
+	length = FS_Read( buf, length, filenum );
+	FS_FCloseFile( filenum );
 	if( !length ) {
 		CG_Free( buf );
-		CG_Printf( "Couldn't load animation script: %s\n", filename );
+		Com_Printf( "Couldn't load animation script: %s\n", filename );
 		return false;
 	}
 
@@ -199,7 +211,7 @@ static bool CG_ParseAnimationScript( pmodelinfo_t *pmodelinfo, char *filename ) 
 			// gender
 			if( !Q_stricmp( token, "sex" ) ) {
 				if( debug ) {
-					CG_Printf( "Script: %s:", token );
+					Com_Printf( "Script: %s:", token );
 				}
 
 				token = COM_ParseExt( &ptr, false );
@@ -210,24 +222,24 @@ static bool CG_ParseAnimationScript( pmodelinfo_t *pmodelinfo, char *filename ) 
 				if( token[0] == 'm' || token[0] == 'M' ) {
 					pmodelinfo->sex = GENDER_MALE;
 					if( debug ) {
-						CG_Printf( " %s -Gender set to MALE\n", token );
+						Com_Printf( " %s -Gender set to MALE\n", token );
 					}
 				} else if( token[0] == 'f' || token[0] == 'F' ) {
 					pmodelinfo->sex = GENDER_FEMALE;
 					if( debug ) {
-						CG_Printf( " %s -Gender set to FEMALE\n", token );
+						Com_Printf( " %s -Gender set to FEMALE\n", token );
 					}
 				} else if( token[0] == 'n' || token[0] == 'N' ) {
 					pmodelinfo->sex = GENDER_NEUTRAL;
 					if( debug ) {
-						CG_Printf( " %s -Gender set to NEUTRAL\n", token );
+						Com_Printf( " %s -Gender set to NEUTRAL\n", token );
 					}
 				} else {
 					if( debug ) {
 						if( token[0] ) {
-							CG_Printf( " WARNING: unrecognized token: %s\n", token );
+							Com_Printf( " WARNING: unrecognized token: %s\n", token );
 						} else {
-							CG_Printf( " WARNING: no value after cmd sex: %s\n", token );
+							Com_Printf( " WARNING: no value after cmd sex: %s\n", token );
 						}
 					}
 					break; //Error
@@ -255,8 +267,8 @@ static bool CG_ParseAnimationScript( pmodelinfo_t *pmodelinfo, char *filename ) 
 					}
 					CG_ParseRotationBone( pmodelinfo, token, HEAD );
 				} else if( debug ) {
-					CG_Printf( "Script: ERROR: Unrecognized rotation pmodel part %s\n", token );
-					CG_Printf( "Script: ERROR: Valid names are: 'upper', 'head'\n" );
+					Com_Printf( "Script: ERROR: Unrecognized rotation pmodel part %s\n", token );
+					Com_Printf( "Script: ERROR: Valid names are: 'upper', 'head'\n" );
 				}
 			}
 			// Root animation bone
@@ -274,10 +286,10 @@ static bool CG_ParseAnimationScript( pmodelinfo_t *pmodelinfo, char *filename ) 
 					rootanims[LOWER] = CG_FindBoneNum( CG_SkeletonForModel( pmodelinfo->model ), COM_ParseExt( &ptr, false ) );
 
 					//we parse it so it makes no error, but we ignore it later on
-					CG_Printf( "Script: WARNING: Ignored rootanim lower: Valid names are: 'upper', 'head' (lower is always skeleton root)\n" );
+					Com_Printf( "Script: WARNING: Ignored rootanim lower: Valid names are: 'upper', 'head' (lower is always skeleton root)\n" );
 				} else if( debug ) {
-					CG_Printf( "Script: ERROR: Unrecognized root animation pmodel part %s\n", token );
-					CG_Printf( "Script: ERROR: Valid names are: 'upper', 'head'\n" );
+					Com_Printf( "Script: ERROR: Unrecognized root animation pmodel part %s\n", token );
+					Com_Printf( "Script: ERROR: Valid names are: 'upper', 'head'\n" );
 				}
 			}
 			// Tag bone (format is: tagmask "bone name" "tag name")
@@ -296,7 +308,7 @@ static bool CG_ParseAnimationScript( pmodelinfo_t *pmodelinfo, char *filename ) 
 
 					token = COM_ParseExt( &ptr, false );
 					if( !token[0] ) {
-						CG_Printf( "Script: ERROR: missing maskname in tagmask for bone %i\n", bonenum );
+						Com_Printf( "Script: ERROR: missing maskname in tagmask for bone %i\n", bonenum );
 						break; //Error
 					}
 					Q_strncpyz( maskname, token, sizeof( maskname ) );
@@ -308,25 +320,25 @@ static bool CG_ParseAnimationScript( pmodelinfo_t *pmodelinfo, char *filename ) 
 					roll = atof( COM_ParseExt( &ptr, false ) );
 					CG_ParseTagMask( pmodelinfo->model, bonenum, maskname, forward, right, up, pitch, yaw, roll );
 				} else if( debug ) {
-					CG_Printf( "Script: WARNING: Unknown bone name: %s\n", token );
+					Com_Printf( "Script: WARNING: Unknown bone name: %s\n", token );
 				}
 
 			} else if( token[0] && debug ) {
-				CG_Printf( "Script: WARNING: unrecognized token: %s\n", token );
+				Com_Printf( "Script: WARNING: unrecognized token: %s\n", token );
 			}
 
 		} else {
 			// frame & animation values
 			i = (int)atoi( token );
 			if( debug ) {
-				CG_Printf( "%i - ", i );
+				Com_Printf( "%i - ", i );
 			}
 			anim_data[rounder][counter] = i;
 			rounder++;
 			if( rounder > 3 ) {
 				rounder = 0;
 				if( debug ) {
-					CG_Printf( " anim: %i\n", counter );
+					Com_Printf( " anim: %i\n", counter );
 				}
 				counter++;
 				if( counter == PMODEL_TOTAL_ANIMATIONS ) {
@@ -340,7 +352,7 @@ static bool CG_ParseAnimationScript( pmodelinfo_t *pmodelinfo, char *filename ) 
 
 	//it must contain at least as many animations as a Q3 script to be valid
 	if( counter < PMODEL_TOTAL_ANIMATIONS ) {
-		CG_Printf( "PModel Error: Not enough animations(%i) at animations script: %s\n", counter, filename );
+		Com_Printf( "PModel Error: Not enough animations(%i) at animations script: %s\n", counter, filename );
 		return false;
 	}
 
@@ -388,12 +400,12 @@ static bool CG_LoadPlayerModel( pmodelinfo_t *pmodelinfo, const char *filename )
 	char scratch[MAX_QPATH];
 
 	Q_snprintfz( scratch, sizeof( scratch ), "%s/tris.iqm", filename );
-	if( cgs.pure && !trap_FS_IsPureFile( scratch ) ) {
+	if( cgs.pure && !FS_IsPureFile( scratch ) ) {
 		return false;
 	}
 
 	pmodelinfo->model = CG_RegisterModel( scratch );
-	if( !trap_R_SkeletalGetNumBones( pmodelinfo->model, NULL ) ) {
+	if( !R_SkeletalGetNumBones( pmodelinfo->model, NULL ) ) {
 		// pmodels only accept skeletal models
 		pmodelinfo->model = NULL;
 		return false;
@@ -402,7 +414,7 @@ static bool CG_LoadPlayerModel( pmodelinfo_t *pmodelinfo, const char *filename )
 	// load animations script
 	if( pmodelinfo->model ) {
 		Q_snprintfz( anim_filename, sizeof( anim_filename ), "%s/animation.cfg", filename );
-		if( !cgs.pure || trap_FS_IsPureFile( anim_filename ) ) {
+		if( !cgs.pure || FS_IsPureFile( anim_filename ) ) {
 			loaded_model = CG_ParseAnimationScript( pmodelinfo, anim_filename );
 		}
 	}
@@ -458,7 +470,7 @@ void CG_RegisterBasePModel( void ) {
 	cgs.basePModelInfo = CG_RegisterPlayerModel( filename );
 
 	Q_snprintfz( filename, sizeof( filename ), "%s/%s/%s", "models/players", DEFAULT_PLAYERMODEL, DEFAULT_PLAYERSKIN );
-	cgs.baseSkin = trap_R_RegisterSkinFile( filename );
+	cgs.baseSkin = R_RegisterSkinFile( filename );
 	if( !cgs.baseSkin ) {
 		CG_Error( "'Default Player Model'(%s): Skin (%s) failed to load", DEFAULT_PLAYERMODEL, filename );
 	}
@@ -490,7 +502,7 @@ bool CG_GrabTag( orientation_t *tag, entity_t *ent, const char *tagname ) {
 		return CG_SkeletalPoseGetAttachment( tag, skel, ent->boneposes, tagname );
 	}
 
-	return trap_R_LerpTag( tag, ent->model, ent->frame, ent->oldframe, ent->backlerp, tagname );
+	return RF_LerpTag( tag, ent->model, ent->frame, ent->oldframe, ent->backlerp, tagname );
 }
 
 /*
@@ -846,7 +858,7 @@ static void CG_AddHeadIcon( centity_t *cent ) {
 			balloon.radius = radius;
 			balloon.model = NULL;
 
-			trap_R_AddEntityToScene( &balloon );
+			RF_AddEntityToScene( &balloon );
 		}
 
 		// add stun effect: not really a head icon, but there's no point in finding the head location twice
@@ -860,7 +872,7 @@ static void CG_AddHeadIcon( centity_t *cent ) {
 				balloon.shaderRGBA[3] = ( 255 * ( 1.0f - cg.lerpfrac ) );
 			}
 
-			trap_R_AddEntityToScene( &balloon );
+			RF_AddEntityToScene( &balloon );
 		}
 	}
 }
