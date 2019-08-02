@@ -118,18 +118,23 @@ bool LeafPropsReader::ParseLine( char *line, unsigned lineLength, LeafProps *pro
 	// Save for recovery in case of leaf props scanning failure
 	const char *maybePresetName = linePtr;
 	int lastPartNum = 0;
-	float parts[4];
-	for(; lastPartNum < 4; ++lastPartNum ) {
+	float parts[6];
+	for(; lastPartNum < 6; ++lastPartNum ) {
 		double v = ::strtod( linePtr, &endPtr );
 		if( endPtr == linePtr ) {
 			break;
 		}
 		// The value is numeric but is out of range.
-		// It is not a preset for sure, return with failure immediately
-		if( v < 0.0 || v > 1.0 ) {
+		// It is not a preset for sure, return with failure immediately.
+		// The range is [0, 1] for first 4 parts and [1000, 20000] for last 2 parts.
+		if( lastPartNum <= 3 ) {
+			if( v < 0.0 || v > 1.0 ) {
+				return false;
+			}
+		} else if( v < 1000.0f || v > 20000.0f ) {
 			return false;
 		}
-		if( lastPartNum != 3 ) {
+		if( lastPartNum != 5 ) {
 			if( !isspace( *endPtr ) ) {
 				return false;
 			}
@@ -149,8 +154,13 @@ bool LeafPropsReader::ParseLine( char *line, unsigned lineLength, LeafProps *pro
 		return false;
 	}
 
-	// There were 1..3 parts
-	if( lastPartNum != 4 ) {
+	// There should be 6 parts
+	if( lastPartNum != 6 ) {
+		return false;
+	}
+
+	// The HF reference range must be valid
+	if( parts[4] > parts[5] ) {
 		return false;
 	}
 
@@ -158,6 +168,8 @@ bool LeafPropsReader::ParseLine( char *line, unsigned lineLength, LeafProps *pro
 	props->SetSkyFactor( parts[1] );
 	props->SetWaterFactor( parts[2] );
 	props->SetMetalFactor( parts[3] );
+	props->minHfRef = (uint16_t)parts[4];
+	props->maxHfRef = (uint16_t)parts[5];
 	return true;
 }
 
@@ -168,9 +180,10 @@ bool LeafPropsWriter::WriteProps( const LeafProps &props ) {
 
 	char buffer[MAX_STRING_CHARS];
 	int charsPrinted = Q_snprintfz( buffer, sizeof( buffer ),
-									"%d %.2f %.2f %.2f %.2f\r\n", leafCounter,
+									"%d %.2f %.2f %.2f %.2f %d %d\r\n", leafCounter,
 									props.RoomSizeFactor(), props.SkyFactor(),
-									props.WaterFactor(), props.MetalFactor() );
+									props.WaterFactor(), props.MetalFactor(),
+									(int)props.MinHfRef(), (int)props.MaxHfRef() );
 
 	int charsWritten = FS_Write( buffer, (size_t)charsPrinted, fd );
 	if( charsWritten != charsPrinted ) {
@@ -312,6 +325,34 @@ public:
 	void Exec() override;
 };
 
+struct {
+	const char *map;
+	float min, max;
+} hardcodedHfReferenceBounds[] = {
+	{ "wdm2",  4500.0f, 10000.0f },
+	{ "wdm3",  3000.0f, 5000.0f },
+	{ "wdm4",  5000.0f, 15000.0f },
+	{ "wdm6",  4500.0f, 10000.0f },
+	{ "wdm8",  5000.0f, 12500.0f },
+	{ "wdm9",  4000.0f, 10000.0f },
+	{ "wdm11", 3000.0f, 4000.0f },
+	{ "wdm12", 3000.0f, 5000.0f },
+	{ "wdm13", 4500.0f, 10000.0f },
+	{ "wdm14", 4500.0f, 10000.0f },
+	{ "wdm15", 5000.0f, 12500.0f },
+	{ "wdm16", 5000.0f, 10000.0f },
+	{ "wdm17", 5000.0f, 10000.0f },
+	{ "wbomb1", 3000.0f, 4000.0f },
+	{ "wbomb2", 4000.0f, 10000.0f },
+	{ "wbomb3", 3000.0f, 5000.0f },
+	{ "wca1", 5000.0f, 12500.0f },
+	{ "wamphi1", 3500.0f, 7500.0f },
+	{ "wda1", 3500.0f, 7500.0f },
+	{ "wda2", 4500.0f, 7500.0f },
+	{ "wda3", 3000.0f, 5000.0f },
+	{ "wda4", 5000.0f, 9000.0f }
+};
+
 bool LeafPropsCache::ComputeNewState( bool fastAndCoarse ) {
 	leafProps[0] = LeafProps();
 
@@ -358,6 +399,31 @@ bool LeafPropsCache::ComputeNewState( bool fastAndCoarse ) {
 	}
 
 	computationHost->Exec();
+
+	// Should be derived from metalness/smoothness of surfaces for every leaf.
+	// Currently just try using a global hardcoded value for a map or using a default one.
+	char buffer[MAX_CONFIGSTRING_CHARS];
+	memcpy( buffer, S_GetConfigString( CS_WORLDMODEL ), MAX_CONFIGSTRING_CHARS );
+	COM_StripExtension( buffer );
+	const char *map = COM_FileBase( buffer );
+	std::pair<float, float> hfRefBounds { 3000.0f, 5500.0f };
+	for( const auto &hardcoded: hardcodedHfReferenceBounds ) {
+		if( !Q_stricmp( map, hardcoded.map ) ) {
+			hfRefBounds = std::make_pair( hardcoded.min, hardcoded.max );
+			break;
+		}
+	}
+
+	// Set values for the zero leaf as well.
+	// Otherwise the file loading fails at illegal value and we do not want to complicate the loader code.
+	for( int i = 0; i < actualNumLeafs; ++i ) {
+		float minHfRef = hfRefBounds.first - 1000.0f * leafProps->SkyFactor();
+		float maxHfRef = hfRefBounds.second - 3000.0f * leafProps->SkyFactor();
+		Q_clamp( minHfRef, 1500.0f, 5000.0f );
+		Q_clamp( maxHfRef, minHfRef, 20000.0f );
+		std::tie( leafProps[i].minHfRef, leafProps[i].maxHfRef ) = std::make_pair( minHfRef, maxHfRef );
+	}
+
 	return true;
 }
 

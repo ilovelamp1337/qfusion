@@ -12,6 +12,9 @@ struct alignas( 4 )LeafProps {
 	uint8_t waterFactor;
 	uint8_t metalFactor;
 
+	uint16_t minHfRef;
+	uint16_t maxHfRef;
+
 	static float PackValue( float value ) { return (uint8_t)( value * 255 ); }
 	static float UnpackValue( uint8_t packed ) { return packed / 255.0f; }
 
@@ -25,6 +28,10 @@ struct alignas( 4 )LeafProps {
 	MK_ACCESSORS( MetalFactor, metalFactor );
 
 #undef MK_ACCESSORS
+
+	// Provide custom getters as well for consistency with packed fields
+	float MinHfRef() const { return minHfRef; }
+	float MaxHfRef() const { return maxHfRef; }
 };
 
 struct EfxPresetEntry;
@@ -33,7 +40,6 @@ class LeafPropsCache: public CachedComputation {
 	template <typename> friend class SingletonHolder;
 
 	LeafProps *leafProps { nullptr };
-
 public:
 	using PresetHandle = const EfxPresetEntry *;
 private:
@@ -46,7 +52,7 @@ private:
 	bool ComputeNewState( bool fastAndCoarse ) override;
 	bool SaveToCache() override;
 
-	LeafPropsCache(): CachedComputation( "LeafPropsCache", ".leafprops", "LeafProps@v1337" ) {}
+	LeafPropsCache(): CachedComputation( "LeafPropsCache", ".leafprops", "LeafProps@v1338" ) {}
 public:
 	static LeafPropsCache *Instance();
 	static void Init();
