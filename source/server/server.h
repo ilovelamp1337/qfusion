@@ -94,7 +94,6 @@ struct edict_s {
 typedef struct {
 	bool allentities;
 	bool multipov;
-	bool relay;
 	int clientarea;
 	int numareas;
 	int areabytes;

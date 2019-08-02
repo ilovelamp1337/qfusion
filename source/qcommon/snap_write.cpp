@@ -63,35 +63,26 @@ Encode a client frame onto the network channel
 *
 * Writes a delta update of an entity_state_t list to the message.
 */
-static void SNAP_EmitPacketEntities( ginfo_t *gi, client_snapshot_t *from, client_snapshot_t *to, msg_t *msg, entity_state_t *baselines, entity_state_t *client_entities, int num_client_entities ) {
-	entity_state_t *oldent, *newent;
-	int oldindex, newindex;
-	int oldnum, newnum;
-	int from_num_entities;
-
+static void SNAP_EmitPacketEntities( const client_snapshot_t *from, const client_snapshot_t *to,
+								     msg_t *msg, const entity_state_t *baselines,
+								     const entity_state_t *client_entities, int num_client_entities ) {
 	MSG_WriteUint8( msg, svc_packetentities );
 
-	if( !from ) {
-		from_num_entities = 0;
-	} else {
-		from_num_entities = from->num_entities;
-	}
+	const int from_num_entities = !from ? 0 : from->num_entities;
 
-	newindex = 0;
-	oldindex = 0;
+	int newindex = 0;
+	int oldindex = 0;
 	while( newindex < to->num_entities || oldindex < from_num_entities ) {
-		if( newindex >= to->num_entities ) {
-			newent = NULL;
-			newnum = 9999;
-		} else {
+		int newnum = 9999;
+		const entity_state_t *newent = nullptr;
+		if( newindex < to->num_entities ) {
 			newent = &client_entities[( to->first_entity + newindex ) % num_client_entities];
 			newnum = newent->number;
 		}
 
-		if( oldindex >= from_num_entities ) {
-			oldent = NULL;
-			oldnum = 9999;
-		} else {
+		int oldnum = 9999;
+		const entity_state_t *oldent = nullptr;
+		if( oldindex < from_num_entities ) {
 			oldent = &client_entities[( from->first_entity + oldindex ) % num_client_entities];
 			oldnum = oldent->number;
 		}
@@ -117,7 +108,7 @@ static void SNAP_EmitPacketEntities( ginfo_t *gi, client_snapshot_t *from, clien
 
 		if( newnum > oldnum ) {
 			// the old entity isn't present in the new message
-			SNAP_WriteDeltaEntity( msg, oldent, NULL, to, false );
+			SNAP_WriteDeltaEntity( msg, oldent, nullptr, to, false );
 			oldindex++;
 			continue;
 		}
@@ -129,15 +120,15 @@ static void SNAP_EmitPacketEntities( ginfo_t *gi, client_snapshot_t *from, clien
 /*
 * SNAP_WriteDeltaGameStateToClient
 */
-static void SNAP_WriteDeltaGameStateToClient( client_snapshot_t *from, client_snapshot_t *to, msg_t *msg ) {
+static void SNAP_WriteDeltaGameStateToClient( const client_snapshot_t *from, const client_snapshot_t *to, msg_t *msg ) {
 	MSG_WriteUint8( msg, svc_match );
-	MSG_WriteDeltaGameState( msg, from ? &from->gameState : NULL, &to->gameState );
+	MSG_WriteDeltaGameState( msg, from ? &from->gameState : nullptr, &to->gameState );
 }
 
 /*
 * SNAP_WritePlayerstateToClient
 */
-static void SNAP_WritePlayerstateToClient( msg_t *msg, const player_state_t *ops, player_state_t *ps, const client_snapshot_t *frame ) {
+static void SNAP_WritePlayerstateToClient( msg_t *msg, const player_state_t *ops, const player_state_t *ps, const client_snapshot_t *frame ) {
 	MSG_WriteUint8( msg, svc_playerinfo );
 
 	// Transmit private stats for spectators
@@ -165,56 +156,35 @@ static void SNAP_WritePlayerstateToClient( msg_t *msg, const player_state_t *ops
 		return;
 	}
 
-	short backupHealth = ps->stats[STAT_HEALTH];
-	short backupArmor = ps->stats[STAT_ARMOR];
-	vec3_t backupOrigin;
-	vec3_t backupVelocity;
-	vec2_t backupAngles;
-	int backupInventory[MAX_ITEMS];
-	VectorCopy( ps->pmove.origin, backupOrigin );
-	VectorCopy( ps->pmove.velocity, backupVelocity );
-	Vector2Copy( ps->viewangles, backupAngles );
-	memcpy( backupInventory, ps->inventory, sizeof( backupInventory ) );
-
-	ps->stats[STAT_HEALTH] = 100;
-	ps->stats[STAT_ARMOR] = 100;
-	memset( ps->inventory, 0, sizeof( backupInventory ) );
+	player_state_t modifiedState = *ps;
+	modifiedState.stats[STAT_HEALTH] = 100;
+	modifiedState.stats[STAT_ARMOR] = 100;
+	memset( modifiedState.inventory, 0, sizeof( modifiedState.inventory ) );
 
 	// Transmit fake/garbage data if the player entity would be culled if there were no attached events
 	if( SnapShadowTable::Instance()->IsEntityShadowed( frame->ps->playerNum, ps->playerNum + 1 ) ) {
 		for( int i = 0; i < 2; ++i ) {
-			ps->viewangles[i] = -180.0f + 360.0f * random();
+			modifiedState.viewangles[i] = -180.0f + 360.0f * random();
 		}
 		for( int i = 0; i < 3; ++i ) {
-			ps->pmove.origin[i] = -500.0f + 1000.0f * random();
-			ps->pmove.velocity[i] = -500.0f + 1000.0f * random();
+			modifiedState.pmove.origin[i] = -500.0f + 1000.0f * random();
+			modifiedState.pmove.velocity[i] = -500.0f + 1000.0f * random();
 		}
 	}
 
-	MSG_WriteDeltaPlayerState( msg, ops, ps );
-
-	ps->stats[STAT_HEALTH] = backupHealth;
-	ps->stats[STAT_ARMOR] = backupArmor;
-	VectorCopy( backupOrigin, ps->pmove.origin );
-	VectorCopy( backupVelocity, ps->pmove.velocity );
-	Vector2Copy( backupAngles, ps->viewangles );
-	memcpy( ps->inventory, backupInventory, sizeof( ps->inventory ) );
+	MSG_WriteDeltaPlayerState( msg, ops, &modifiedState );
 }
 
 /*
 * SNAP_WriteMultiPOVCommands
 */
-static void SNAP_WriteMultiPOVCommands( ginfo_t *gi, client_t *client, msg_t *msg, int64_t frameNum ) {
-	int i, index;
-	client_t *cl;
+static void SNAP_WriteMultiPOVCommands( const ginfo_t *gi, const client_t *client, msg_t *msg, int64_t frameNum ) {
 	int positions[MAX_CLIENTS];
-	int maxnumtargets;
-	const char *command;
 
 	// find the first command to send from every client
-	maxnumtargets = 0;
-	for( i = 0; i < gi->max_clients; i++ ) {
-		cl = gi->clients + i;
+	int maxnumtargets = 0;
+	for( int i = 0; i < gi->max_clients; i++ ) {
+		const client_t *cl = gi->clients + i;
 
 		if( cl->state < CS_SPAWNED || ( ( !cl->edict || ( cl->edict->r.svflags & SVF_NOCLIENT ) ) && cl != client ) ) {
 			continue;
@@ -223,7 +193,7 @@ static void SNAP_WriteMultiPOVCommands( ginfo_t *gi, client_t *client, msg_t *ms
 		maxnumtargets++;
 		for( positions[i] = cl->gameCommandCurrent - MAX_RELIABLE_COMMANDS + 1;
 			 positions[i] <= cl->gameCommandCurrent; positions[i]++ ) {
-			index = positions[i] & ( MAX_RELIABLE_COMMANDS - 1 );
+			const int index = positions[i] & ( MAX_RELIABLE_COMMANDS - 1 );
 
 			// we need to check for too new commands too, because gamecommands for the next snap are generated
 			// all the time, and we might want to create a server demo frame or something in between snaps
@@ -235,18 +205,19 @@ static void SNAP_WriteMultiPOVCommands( ginfo_t *gi, client_t *client, msg_t *ms
 		}
 	}
 
+	const char *command;
 	// send all messages, combining similar messages together to save space
 	do {
 		int numtargets = 0, maxtarget = 0;
 		int64_t framenum = 0;
 		uint8_t targets[MAX_CLIENTS / 8];
 
-		command = NULL;
+		command = nullptr;
 		memset( targets, 0, sizeof( targets ) );
 
 		// we find the message with the earliest framenum, and collect all recipients for that
-		for( i = 0; i < gi->max_clients; i++ ) {
-			cl = gi->clients + i;
+		for( int i = 0; i < gi->max_clients; i++ ) {
+			const client_t *cl = gi->clients + i;
 
 			if( cl->state < CS_SPAWNED || ( ( !cl->edict || ( cl->edict->r.svflags & SVF_NOCLIENT ) ) && cl != client ) ) {
 				continue;
@@ -256,7 +227,7 @@ static void SNAP_WriteMultiPOVCommands( ginfo_t *gi, client_t *client, msg_t *ms
 				continue;
 			}
 
-			index = positions[i] & ( MAX_RELIABLE_COMMANDS - 1 );
+			const int index = positions[i] & ( MAX_RELIABLE_COMMANDS - 1 );
 
 			if( command && !strcmp( cl->gameCommands[index].command, command ) &&
 				framenum == cl->gameCommands[index].framenum ) {
@@ -299,69 +270,23 @@ static void SNAP_WriteMultiPOVCommands( ginfo_t *gi, client_t *client, msg_t *ms
 				}
 			}
 
-			for( i = 0; i < maxtarget; i++ )
+			for( int i = 0; i < maxtarget; i++ ) {
 				if( targets[i >> 3] & ( 1 << ( i & 7 ) ) ) {
 					positions[i]++;
 				}
+			}
 		}
 	} while( command );
 }
 
 /*
-* SNAP_RelayMultiPOVCommands
-*/
-static void SNAP_RelayMultiPOVCommands( ginfo_t *gi, client_t *client, msg_t *msg, int numcmds, gcommand_t *commands, const char *commandsData ) {
-	int i, index;
-	int first_index, last_index;
-	gcommand_t *gcmd;
-	const char *command;
-
-	first_index = numcmds - MAX_RELIABLE_COMMANDS;
-	last_index = first_index + MAX_RELIABLE_COMMANDS;
-
-	clamp_low( first_index, 0 );
-	clamp_high( last_index, numcmds );
-
-	for( index = first_index, gcmd = commands + index; index < last_index; index++, gcmd++ ) {
-		command = commandsData + gcmd->commandOffset;
-
-		// do not allow the message buffer to overflow (can happen on flood updates)
-		if( msg->cursize + strlen( command ) + 512 > msg->maxsize ) {
-			continue;
-		}
-
-		MSG_WriteInt16( msg, 0 );
-		MSG_WriteString( msg, command );
-
-		if( gcmd->all ) {
-			MSG_WriteUint8( msg, 0 );
-		} else {
-			int maxtarget, bytes;
-
-			maxtarget = 0;
-			for( i = 0; i < MAX_CLIENTS; i++ )
-				if( gcmd->targets[i >> 3] & ( 1 << ( i & 7 ) ) ) {
-					maxtarget = i + 1;
-				}
-
-			bytes = ( maxtarget + 7 ) / 8;
-			MSG_WriteUint8( msg, bytes );
-			MSG_WriteData( msg, gcmd->targets, bytes );
-		}
-	}
-}
-
-/*
 * SNAP_WriteFrameSnapToClient
 */
-void SNAP_WriteFrameSnapToClient( ginfo_t *gi, client_t *client, msg_t *msg, int64_t frameNum, int64_t gameTime,
-								  entity_state_t *baselines, client_entities_t *client_entities,
-								  int numcmds, gcommand_t *commands, const char *commandsData ) {
-	client_snapshot_t *frame, *oldframe;
-	int flags, i, index, pos, length, supcnt;
-
+void SNAP_WriteFrameSnapToClient( const ginfo_t *gi, client_t *client, msg_t *msg, int64_t frameNum, int64_t gameTime,
+								  const entity_state_t *baselines, const client_entities_t *client_entities,
+								  int numcmds, const gcommand_t *commands, const char *commandsData ) {
 	// this is the frame we are creating
-	frame = &client->snapShots[frameNum & UPDATE_MASK];
+	const client_snapshot_t *frame = &client->snapShots[frameNum & UPDATE_MASK];
 
 	// for non-reliable clients we need to send nodelta frame until the client responds
 	if( client->nodelta && !client->reliable ) {
@@ -372,19 +297,21 @@ void SNAP_WriteFrameSnapToClient( ginfo_t *gi, client_t *client, msg_t *msg, int
 		}
 	}
 
+	const client_snapshot_t *oldframe;
+	// TODO: Clean up these conditions
 	if( client->lastframe <= 0 || client->lastframe > frameNum || client->nodelta ) {
 		// client is asking for a not compressed retransmit
-		oldframe = NULL;
+		oldframe = nullptr;
 	}
 	//else if( frameNum >= client->lastframe + (UPDATE_BACKUP - 3) )
 	else if( frameNum >= client->lastframe + UPDATE_MASK ) {
 		// client hasn't gotten a good message through in a long time
-		oldframe = NULL;
+		oldframe = nullptr;
 	} else {
 		// we have a valid message to delta from
 		oldframe = &client->snapShots[client->lastframe & UPDATE_MASK];
 		if( oldframe->multipov != frame->multipov ) {
-			oldframe = NULL;        // don't delta compress a frame of different POV type
+			oldframe = nullptr;        // don't delta compress a frame of different POV type
 		}
 	}
 
@@ -394,7 +321,7 @@ void SNAP_WriteFrameSnapToClient( ginfo_t *gi, client_t *client, msg_t *msg, int
 
 	MSG_WriteUint8( msg, svc_frame );
 
-	pos = msg->cursize;
+	const int pos = msg->cursize;
 	MSG_WriteInt16( msg, 0 );       // we will write length here
 
 	MSG_WriteIntBase128( msg, gameTime ); // serverTimeStamp
@@ -402,8 +329,8 @@ void SNAP_WriteFrameSnapToClient( ginfo_t *gi, client_t *client, msg_t *msg, int
 	MSG_WriteUintBase128( msg, client->lastframe );
 	MSG_WriteUintBase128( msg, frame->UcmdExecuted );
 
-	flags = 0;
-	if( oldframe != NULL ) {
+	int flags = 0;
+	if( oldframe ) {
 		flags |= FRAMESNAP_FLAG_DELTA;
 	}
 	if( frame->allentities ) {
@@ -415,9 +342,9 @@ void SNAP_WriteFrameSnapToClient( ginfo_t *gi, client_t *client, msg_t *msg, int
 	MSG_WriteUint8( msg, flags );
 
 #ifdef RATEKILLED
-	supcnt = client->suppressCount;
+	const int supcnt = client->suppressCount;
 #else
-	supcnt = 0;
+	const int supcnt = 0;
 #endif
 
 	client->suppressCount = 0;
@@ -426,14 +353,10 @@ void SNAP_WriteFrameSnapToClient( ginfo_t *gi, client_t *client, msg_t *msg, int
 	// add game comands
 	MSG_WriteUint8( msg, svc_gamecommands );
 	if( frame->multipov ) {
-		if( frame->relay ) {
-			SNAP_RelayMultiPOVCommands( gi, client, msg, numcmds, commands, commandsData );
-		} else {
-			SNAP_WriteMultiPOVCommands( gi, client, msg, frameNum );
-		}
+		SNAP_WriteMultiPOVCommands( gi, client, msg, frameNum );
 	} else {
-		for( i = client->gameCommandCurrent - MAX_RELIABLE_COMMANDS + 1; i <= client->gameCommandCurrent; i++ ) {
-			index = i & ( MAX_RELIABLE_COMMANDS - 1 );
+		for( int i = client->gameCommandCurrent - MAX_RELIABLE_COMMANDS + 1; i <= client->gameCommandCurrent; i++ ) {
+			const int index = i & ( MAX_RELIABLE_COMMANDS - 1 );
 
 			// check that it is valid command and that has not already been sent
 			// we can only allow commands from certain amount of old frames, so the short won't overflow
@@ -462,20 +385,22 @@ void SNAP_WriteFrameSnapToClient( ginfo_t *gi, client_t *client, msg_t *msg, int
 	SNAP_WriteDeltaGameStateToClient( oldframe, frame, msg );
 
 	// delta encode the playerstate
-	for( i = 0; i < frame->numplayers; i++ ) {
+	for( int i = 0; i < frame->numplayers; i++ ) {
 		if( oldframe && oldframe->numplayers > i ) {
 			SNAP_WritePlayerstateToClient( msg, &oldframe->ps[i], &frame->ps[i], frame );
 		} else {
-			SNAP_WritePlayerstateToClient( msg, NULL, &frame->ps[i], frame );
+			SNAP_WritePlayerstateToClient( msg, nullptr, &frame->ps[i], frame );
 		}
 	}
 	MSG_WriteUint8( msg, 0 );
 
 	// delta encode the entities
-	SNAP_EmitPacketEntities( gi, oldframe, frame, msg, baselines, client_entities ? client_entities->entities : NULL, client_entities ? client_entities->num_entities : 0 );
+	const entity_state_t *entityStates = client_entities ? client_entities->entities : nullptr;
+	const int numEntities = client_entities ? client_entities->num_entities : 0;
+	SNAP_EmitPacketEntities( oldframe, frame, msg, baselines, entityStates, numEntities );
 
 	// write length into reserved space
-	length = msg->cursize - pos - 2;
+	const int length = msg->cursize - pos - 2;
 	msg->cursize = pos;
 	MSG_WriteInt16( msg, length );
 	msg->cursize += length;
@@ -505,9 +430,7 @@ static void SNAP_FatPVS( cmodel_state_t *cms, const vec3_t org, uint8_t *fatpvs 
 /*
 * SNAP_BitsCullEntity
 */
-static bool SNAP_BitsCullEntity( cmodel_state_t *cms, edict_t *ent, uint8_t *bits, int max_clusters ) {
-	int i, l;
-
+static bool SNAP_BitsCullEntity( const cmodel_state_t *cms, const edict_t *ent, const uint8_t *bits, int max_clusters ) {
 	// too many leafs for individual check, go by headnode
 	if( ent->r.num_clusters == -1 ) {
 		if( !CM_HeadnodeVisible( cms, ent->r.headnode, bits ) ) {
@@ -517,8 +440,8 @@ static bool SNAP_BitsCullEntity( cmodel_state_t *cms, edict_t *ent, uint8_t *bit
 	}
 
 	// check individual leafs
-	for( i = 0; i < max_clusters; i++ ) {
-		l = ent->r.clusternums[i];
+	for( int i = 0; i < max_clusters; i++ ) {
+		const int l = ent->r.clusternums[i];
 		if( bits[l >> 3] & ( 1 << ( l & 7 ) ) ) {
 			return false;
 		}
@@ -529,7 +452,7 @@ static bool SNAP_BitsCullEntity( cmodel_state_t *cms, edict_t *ent, uint8_t *bit
 
 static bool SNAP_ViewDirCullEntity( const edict_t *clent, const edict_t *ent ) {
 	vec3_t viewDir;
-	AngleVectors( clent->s.angles, viewDir, NULL, NULL );
+	AngleVectors( clent->s.angles, viewDir, nullptr, nullptr );
 
 	vec3_t toEntDir;
 	VectorSubtract( ent->s.origin, clent->s.origin, toEntDir );
@@ -569,12 +492,10 @@ static void SNAP_AddEntNumToSnapList( int entNum, snapshotEntityNumbers_t *entsL
 * SNAP_SortSnapList
 */
 static void SNAP_SortSnapList( snapshotEntityNumbers_t *entsList ) {
-	int i;
-
 	entsList->numSnapshotEntities = 0;
 
 	// avoid adding world to the list by all costs
-	for( i = 1; i < MAX_EDICTS; i++ ) {
+	for( int i = 1; i < MAX_EDICTS; i++ ) {
 		if( entsList->entityAddedToSnapList[i >> 3] & (1 << (i & 7)) ) {
 			entsList->snapshotEntities[entsList->numSnapshotEntities++] = i;
 		}
@@ -623,21 +544,16 @@ static float SNAP_GainForAttenuation( float dist, float attenuation ) {
 /*
 * SNAP_SnapCullSoundEntity
 */
-static bool SNAP_SnapCullSoundEntity( cmodel_state_t *cms, edict_t *ent, vec3_t listener_origin, float attenuation ) {
-	float gain, dist;
-
-	if( !attenuation ) {
+static bool SNAP_SnapCullSoundEntity( const cmodel_state_t *cms, const edict_t *ent, const vec3_t listener_origin, float attenuation ) {
+	if( attenuation == 0.0f ) {
 		return false;
 	}
 
 	// extend the influence sphere cause the player could be moving
-	dist = DistanceFast( ent->s.origin, listener_origin ) - 128;
-	gain = SNAP_GainForAttenuation( dist < 0 ? 0 : dist, attenuation );
-	if( gain > 0.05 ) { // curved attenuations can keep barely audible sounds for long distances
-		return false;
-	}
-
-	return true;
+	const float dist = DistanceFast( ent->s.origin, listener_origin ) - 128;
+	const float gain = SNAP_GainForAttenuation( dist < 0 ? 0 : dist, attenuation );
+	// curved attenuations can keep barely audible sounds for long distances
+	return gain <= 0.05f;
 }
 
 static inline bool SNAP_IsSoundCullOnlyEntity( const edict_t *ent ) {
@@ -658,17 +574,9 @@ static inline bool SNAP_IsSoundCullOnlyEntity( const edict_t *ent ) {
 /*
 * SNAP_SnapCullEntity
 */
-static bool SNAP_SnapCullEntity( cmodel_state_t *cms, edict_t *ent,
-								 edict_t *clent, client_snapshot_t *frame,
+static bool SNAP_SnapCullEntity( const cmodel_state_t *cms, const edict_t *ent,
+								 const edict_t *clent, client_snapshot_t *frame,
 								 vec3_t vieworg, uint8_t *fatpvs, int snapHintFlags ) {
-	uint8_t *areabits;
-	bool snd_cull_only;
-	bool snd_culled;
-	bool snd_use_pvs;
-	bool use_raycasting;
-	bool use_viewdir_culling;
-	bool shadow_real_events_data;
-
 	// filters: this entity has been disabled for comunication
 	if( ent->r.svflags & SVF_NOCLIENT ) {
 		return true;
@@ -706,6 +614,8 @@ static bool SNAP_SnapCullEntity( cmodel_state_t *cms, edict_t *ent,
 	if( ent->r.areanum < 0 ) {
 		return true;
 	}
+
+	const uint8_t *areabits;
 	if( frame->clientarea >= 0 ) {
 		// this is the same as CM_AreasConnected but portal's visibility included
 		areabits = frame->areabits + frame->clientarea * CM_AreaRowSize( cms );
@@ -717,12 +627,11 @@ static bool SNAP_SnapCullEntity( cmodel_state_t *cms, edict_t *ent,
 		}
 	}
 
-	snd_cull_only = SNAP_IsSoundCullOnlyEntity( ent );
-
-	snd_use_pvs = ( snapHintFlags & SNAP_HINT_CULL_SOUND_WITH_PVS ) != 0;
-	use_raycasting = ( snapHintFlags & SNAP_HINT_USE_RAYCAST_CULLING ) != 0;
-	use_viewdir_culling = ( snapHintFlags & SNAP_HINT_USE_VIEW_DIR_CULLING ) != 0;
-	shadow_real_events_data = ( snapHintFlags & SNAP_HINT_SHADOW_EVENTS_DATA ) != 0;
+	const bool snd_cull_only = SNAP_IsSoundCullOnlyEntity( ent );
+	const bool snd_use_pvs = ( snapHintFlags & SNAP_HINT_CULL_SOUND_WITH_PVS ) != 0;
+	const bool use_raycasting = ( snapHintFlags & SNAP_HINT_USE_RAYCAST_CULLING ) != 0;
+	const bool use_viewdir_culling = ( snapHintFlags & SNAP_HINT_USE_VIEW_DIR_CULLING ) != 0;
+	const bool shadow_real_events_data = ( snapHintFlags & SNAP_HINT_SHADOW_EVENTS_DATA ) != 0;
 
 	if( snd_use_pvs ) {
 		// Don't even bother about calling SnapCullSoundEntity() except the entity has only a sound to transmit
@@ -774,7 +683,7 @@ static bool SNAP_SnapCullEntity( cmodel_state_t *cms, edict_t *ent,
 		return false;
 	}
 
-	snd_culled = true;
+	bool snd_culled = true;
 
 	// PVS culling alone may not be used on pure sounds, entities with
 	// events and regular entities emitting sounds, unless being explicitly specified
@@ -827,9 +736,8 @@ static void SNAP_BuildSnapEntitiesList( cmodel_state_t *cms, ginfo_t *gi,
 										edict_t *clent, vec3_t vieworg, vec3_t skyorg,
 										uint8_t *fatpvs, client_snapshot_t *frame,
 										snapshotEntityNumbers_t *entsList, int snapHintFlags ) {
-	int leafnum = -1, clusternum = -1, clientarea = -1;
-	int entNum;
-	edict_t *ent;
+	int leafnum, clientarea;
+	int clusternum = -1;
 
 	// find the client's PVS
 	if( frame->allentities ) {
@@ -848,7 +756,7 @@ static void SNAP_BuildSnapEntitiesList( cmodel_state_t *cms, ginfo_t *gi,
 
 		// if the client is outside of the world, don't send him any entity (excepting himself)
 		if( !frame->allentities && clusternum == -1 ) {
-			entNum = NUM_FOR_EDICT( clent );
+			const int entNum = NUM_FOR_EDICT( clent );
 			if( clent->s.number != entNum ) {
 				Com_Printf( "FIXING CLENT->S.NUMBER: %i %i!!!\n", clent->s.number, entNum );
 				clent->s.number = entNum;
@@ -867,8 +775,8 @@ static void SNAP_BuildSnapEntitiesList( cmodel_state_t *cms, ginfo_t *gi,
 			CM_MergeVisSets( cms, skyorg, fatpvs, frame->areabits + clientarea * CM_AreaRowSize( cms ) );
 		}
 
-		for( entNum = 1; entNum < gi->num_edicts; entNum++ ) {
-			ent = EDICT_NUM( entNum );
+		for( int entNum = 1; entNum < gi->num_edicts; entNum++ ) {
+			edict_t *ent = EDICT_NUM( entNum );
 			if( ent->r.svflags & SVF_PORTAL ) {
 				// merge visibility sets if portal
 				if( SNAP_SnapCullEntity( cms, ent, clent, frame, vieworg, fatpvs, snapHintFlags ) ) {
@@ -883,8 +791,8 @@ static void SNAP_BuildSnapEntitiesList( cmodel_state_t *cms, ginfo_t *gi,
 	}
 
 	// add the entities to the list
-	for( entNum = 1; entNum < gi->num_edicts; entNum++ ) {
-		ent = EDICT_NUM( entNum );
+	for( int entNum = 1; entNum < gi->num_edicts; entNum++ ) {
+		edict_t *ent = EDICT_NUM( entNum );
 
 		// fix number if broken
 		if( ent->s.number != entNum ) {
@@ -923,22 +831,15 @@ static void SNAP_BuildSnapEntitiesList( cmodel_state_t *cms, ginfo_t *gi,
 void SNAP_BuildClientFrameSnap( cmodel_state_t *cms, ginfo_t *gi, int64_t frameNum, int64_t timeStamp,
 								fatvis_t *fatvis, client_t *client,
 								game_state_t *gameState, client_entities_t *client_entities,
-								bool relay, mempool_t *mempool, int snapHintFlags ) {
-	int e, i, ne;
-	vec3_t org;
-	edict_t *ent, *clent;
-	client_snapshot_t *frame;
-	entity_state_t *state;
-	int numplayers, numareas;
-	snapshotEntityNumbers_t entsList;
-
+								mempool_t *mempool, int snapHintFlags ) {
 	assert( gameState );
 
-	clent = client->edict;
-	if( clent && !clent->r.client ) {   // allow NULL ent for server record
+	edict_t *clent = client->edict;
+	if( clent && !clent->r.client ) {   // allow nullptr ent for server record
 		return;     // not in game yet
-
 	}
+
+	vec3_t org;
 	if( clent ) {
 		VectorCopy( clent->s.origin, org );
 		org[2] += clent->r.client->ps.viewheight;
@@ -948,10 +849,9 @@ void SNAP_BuildClientFrameSnap( cmodel_state_t *cms, ginfo_t *gi, int64_t frameN
 	}
 
 	// this is the frame we are creating
-	frame = &client->snapShots[frameNum & UPDATE_MASK];
+	client_snapshot_t *frame = &client->snapShots[frameNum & UPDATE_MASK];
 	frame->sentTimeStamp = timeStamp;
 	frame->UcmdExecuted = client->UcmdExecuted;
-	frame->relay = relay;
 
 	if( client->mv ) {
 		frame->multipov = true;
@@ -962,14 +862,14 @@ void SNAP_BuildClientFrameSnap( cmodel_state_t *cms, ginfo_t *gi, int64_t frameN
 	}
 
 	// areaportals matrix
-	numareas = CM_NumAreas( cms );
+	int numareas = CM_NumAreas( cms );
 	if( frame->numareas < numareas ) {
 		frame->numareas = numareas;
 
 		numareas *= CM_AreaRowSize( cms );
 		if( frame->areabits ) {
 			Mem_Free( frame->areabits );
-			frame->areabits = NULL;
+			frame->areabits = nullptr;
 		}
 		frame->areabits = (uint8_t*)Mem_Alloc( mempool, numareas );
 	}
@@ -977,8 +877,8 @@ void SNAP_BuildClientFrameSnap( cmodel_state_t *cms, ginfo_t *gi, int64_t frameN
 	// grab the current player_state_t
 	if( frame->multipov ) {
 		frame->numplayers = 0;
-		for( i = 0; i < gi->max_clients; i++ ) {
-			ent = EDICT_NUM( i + 1 );
+		for( int i = 0; i < gi->max_clients; i++ ) {
+			edict_t *ent = EDICT_NUM( i + 1 );
 			if( ( clent == ent ) || ( ent->r.inuse && ent->r.client && !( ent->r.svflags & SVF_NOCLIENT ) ) ) {
 				frame->numplayers++;
 			}
@@ -990,7 +890,7 @@ void SNAP_BuildClientFrameSnap( cmodel_state_t *cms, ginfo_t *gi, int64_t frameN
 	if( frame->ps_size < frame->numplayers ) {
 		if( frame->ps ) {
 			Mem_Free( frame->ps );
-			frame->ps = NULL;
+			frame->ps = nullptr;
 		}
 
 		frame->ps = ( player_state_t* )Mem_Alloc( mempool, sizeof( player_state_t ) * frame->numplayers );
@@ -998,9 +898,9 @@ void SNAP_BuildClientFrameSnap( cmodel_state_t *cms, ginfo_t *gi, int64_t frameN
 	}
 
 	if( frame->multipov ) {
-		numplayers = 0;
-		for( i = 0; i < gi->max_clients; i++ ) {
-			ent = EDICT_NUM( i + 1 );
+		int numplayers = 0;
+		for( int i = 0; i < gi->max_clients; i++ ) {
+			const edict_t *ent = EDICT_NUM( i + 1 );
 			if( ( clent == ent ) || ( ent->r.inuse && ent->r.client && !( ent->r.svflags & SVF_NOCLIENT ) ) ) {
 				frame->ps[numplayers] = ent->r.client->ps;
 				frame->ps[numplayers].playerNum = i;
@@ -1014,13 +914,14 @@ void SNAP_BuildClientFrameSnap( cmodel_state_t *cms, ginfo_t *gi, int64_t frameN
 
 	// build up the list of visible entities
 	//=============================
+	snapshotEntityNumbers_t entsList;
 	entsList.numSnapshotEntities = 0;
 	memset( entsList.entityAddedToSnapList, 0, sizeof( entsList.entityAddedToSnapList ) );
 	SNAP_BuildSnapEntitiesList( cms, gi, clent, org, fatvis->skyorg, fatvis->pvs, frame, &entsList, snapHintFlags );
 
 	if( developer->integer ) {
 		int olde = -1;
-		for( e = 0; e < entsList.numSnapshotEntities; e++ ) {
+		for( int e = 0; e < entsList.numSnapshotEntities; e++ ) {
 			if( olde >= entsList.snapshotEntities[e] ) {
 				Com_Printf( "WARNING 'SV_BuildClientFrameSnap': Unsorted entities list\n" );
 			}
@@ -1034,14 +935,14 @@ void SNAP_BuildClientFrameSnap( cmodel_state_t *cms, ginfo_t *gi, int64_t frameN
 	//=============================
 
 	// dump the entities list
-	ne = client_entities->next_entities;
+	int ne = client_entities->next_entities;
 	frame->num_entities = 0;
 	frame->first_entity = ne;
 
-	for( e = 0; e < entsList.numSnapshotEntities; e++ ) {
+	for( int e = 0; e < entsList.numSnapshotEntities; e++ ) {
 		// add it to the circular client_entities array
-		ent = EDICT_NUM( entsList.snapshotEntities[e] );
-		state = &client_entities->entities[ne % client_entities->num_entities];
+		const edict_t *ent = EDICT_NUM( entsList.snapshotEntities[e] );
+		entity_state_t *state = &client_entities->entities[ne % client_entities->num_entities];
 
 		*state = ent->s;
 		state->svflags = ent->r.svflags;
@@ -1058,23 +959,23 @@ void SNAP_BuildClientFrameSnap( cmodel_state_t *cms, ginfo_t *gi, int64_t frameN
 	client_entities->next_entities = ne;
 }
 
+template <typename T>
+static inline void FreeAndNullify( T **p, int *size ) {
+	if( *p ) {
+		Mem_Free( *p );
+		*p = nullptr;
+	}
+	*size = 0;
+}
+
 /*
 * SNAP_FreeClientFrame
 *
 * Free structs and arrays we allocated in SNAP_BuildClientFrameSnap
 */
 static void SNAP_FreeClientFrame( client_snapshot_t *frame ) {
-	if( frame->areabits ) {
-		Mem_Free( frame->areabits );
-		frame->areabits = NULL;
-	}
-	frame->numareas = 0;
-
-	if( frame->ps ) {
-		Mem_Free( frame->ps );
-		frame->ps = NULL;
-	}
-	frame->ps_size = 0;
+	FreeAndNullify( &frame->areabits, &frame->numareas );
+	FreeAndNullify( &frame->ps, &frame->ps_size );
 }
 
 /*
@@ -1082,11 +983,7 @@ static void SNAP_FreeClientFrame( client_snapshot_t *frame ) {
 *
 */
 void SNAP_FreeClientFrames( client_t *client ) {
-	int i;
-	client_snapshot_t *frame;
-
-	for( i = 0; i < UPDATE_BACKUP; i++ ) {
-		frame = &client->snapShots[i];
-		SNAP_FreeClientFrame( frame );
+	for( client_snapshot_t &frame: client->snapShots ) {
+		SNAP_FreeClientFrame( &frame );
 	}
 }

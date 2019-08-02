@@ -1,10 +1,6 @@
 #ifndef QFUSION_SNAP_H
 #define QFUSION_SNAP_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #define SNAP_MAX_DEMO_META_DATA_SIZE    16 * 1024
 
 // define this 0 to disable compression of demo files
@@ -15,10 +11,10 @@ void SNAP_SkipFrame( struct msg_s *msg, struct snapshot_s *header );
 struct snapshot_s *SNAP_ParseFrame( struct msg_s *msg, struct snapshot_s *lastFrame, int *suppressCount,
 									struct snapshot_s *backup, entity_state_t *baselines, int showNet );
 
-void SNAP_WriteFrameSnapToClient( struct ginfo_s *gi, struct client_s *client, struct msg_s *msg,
+void SNAP_WriteFrameSnapToClient( const struct ginfo_s *gi, struct client_s *client, struct msg_s *msg,
 								  int64_t frameNum, int64_t gameTime,
-								  entity_state_t *baselines, struct client_entities_s *client_entities,
-								  int numcmds, gcommand_t *commands, const char *commandsData );
+								  const entity_state_t *baselines, const struct client_entities_s *client_entities,
+								  int numcmds, const gcommand_t *commands, const char *commandsData );
 
 // Use PVS culling for sounds.
 // Note: changes gameplay experience, use with caution.
@@ -45,7 +41,7 @@ void SNAP_WriteFrameSnapToClient( struct ginfo_s *gi, struct client_s *client, s
 void SNAP_BuildClientFrameSnap( struct cmodel_state_s *cms, struct ginfo_s *gi, int64_t frameNum, int64_t timeStamp,
 								struct fatvis_s *fatvis, struct client_s *client,
 								game_state_t *gameState, struct client_entities_s *client_entities,
-								bool relay, struct mempool_s *mempool, int snapHintFlags );
+								struct mempool_s *mempool, int snapHintFlags );
 
 void SNAP_FreeClientFrames( struct client_s *client );
 
@@ -60,10 +56,6 @@ size_t SNAP_ClearDemoMeta( char *meta_data, size_t meta_data_max_size );
 size_t SNAP_SetDemoMetaKeyValue( char *meta_data, size_t meta_data_max_size, size_t meta_data_realsize,
 								 const char *key, const char *value );
 size_t SNAP_ReadDemoMetaData( int demofile, char *meta_data, size_t meta_data_size );
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif
 

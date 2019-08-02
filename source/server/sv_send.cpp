@@ -387,7 +387,7 @@ void SV_BuildClientFrameSnap( client_t *client, int snapHintFlags ) {
 	SNAP_BuildClientFrameSnap( svs.cms, &sv.gi, sv.framenum, svs.gametime,
 							   &svs.fatvis, client, ge->GetGameState(),
 							   &svs.client_entities,
-							   false, sv_mempool, snapHintFlags );
+							   sv_mempool, snapHintFlags );
 	svs.fatvis.skyorg = NULL;
 }
 
