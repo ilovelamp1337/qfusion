@@ -40,9 +40,11 @@ void G_PlayerAward( const edict_t *ent, const char *awardMsg ) {
 	// Having redundant checks won't harm.
 	// Moreover its sufficient to check this at StatsowFacade level
 	// for meta-awards as they aren't announced.
-	if( ChatHandlersChain::Instance()->SkipStatsForClient( ent ) ) {
-		return;
-	}
+
+	// Update: we have decided to skip this test
+	//if( ChatHandlersChain::Instance()->SkipStatsForClient( ent ) ) {
+	//	return;
+	//}
 
 	Q_snprintfz( cmd, sizeof( cmd ), "aw \"%s\"", awardMsg );
 	trap_GameCmd( ent, cmd );

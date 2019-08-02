@@ -1513,17 +1513,15 @@ void RespectHandler::ClientEntry::AnnounceMisconductBehaviour( const char *actio
 		return;
 	}
 
-	const char *subject = S_COLOR_WHITE "R&S Codex";
+	// We can't actually figure out printing that in non-triggering fashion
+	(void)action;
 
-	const char *outcome;
+	char message[256] = S_COLOR_YELLOW "'" S_COLOR_CYAN "Fair play" S_COLOR_YELLOW "' award lost";
 	if( !StatsowFacade::Instance()->IsMatchReportDiscarded() ) {
-		outcome = S_COLOR_RED "No awards, no rating gain";
-	} else {
-		outcome = S_COLOR_RED "No awards given";
+		Q_strncatz( message, ". No rating gain", sizeof( message ) );
 	}
 
-	constexpr const char *format = S_COLOR_RED "You have %s" S_COLOR_RED " %s" S_COLOR_RED "! %s!\n";
-	G_PrintMsg( ent, format, action, subject, outcome );
+	G_PrintMsg( ent, "%s!\n", message );
 }
 
 void RespectHandler::ClientEntry::AnnounceFairPlay() {
