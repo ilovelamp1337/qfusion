@@ -334,6 +334,7 @@ bool BunnyHopAction::CheckStepSpeedGainOrLoss( Context *context ) {
 
 	bool hasChangedZ = false;
 	bool continueOnFailure = false;
+	unsigned penalty = 0;
 	// Skip any further tests if the bot has changed Z substantially or has marked "may stop at origin".
 	// Put cheaper tests first in outer conditions.
 	if( HasSubstantiallyChangedZ( newEntityPhysicsState ) ) {
@@ -343,8 +344,28 @@ bool BunnyHopAction::CheckStepSpeedGainOrLoss( Context *context ) {
 		}
 	}
 	if( !continueOnFailure && mayStopAtAreaNum ) {
-		if( Distance2DSquared( newEntityPhysicsState.Origin(), mayStopAtOrigin ) > SQUARE( 48.0f ) ) {
+		float squareDistance = Distance2DSquared( newEntityPhysicsState.Origin(), mayStopAtOrigin );
+		if( squareDistance > SQUARE( 16.0f ) ) {
 			continueOnFailure = true;
+			// Apply an additional penalty if the square distance from "may stop at origin" is not really sufficient
+			constexpr float threshold = 96.0f;
+			if( squareDistance < SQUARE( threshold ) ) {
+				// Penalty units are supposed to be millis.
+				// Add 50 penalty units for every insufficient distance unit
+				penalty += 50U * (unsigned)( threshold - Q_Sqrt( squareDistance ) );
+			}
+		}
+		if( continueOnFailure ) {
+			// Also apply a penalty for bumping in obstacles being high above ground
+			float heightOverGround = newEntityPhysicsState.HeightOverGround();
+			if( std::isfinite( heightOverGround ) ) {
+				constexpr float threshold = 32.0f;
+				if( heightOverGround > threshold ) {
+					penalty += 50U * ( unsigned )( heightOverGround - threshold );
+				}
+			} else {
+				penalty += 10000;
+			}
 		}
 	}
 
@@ -361,7 +382,7 @@ bool BunnyHopAction::CheckStepSpeedGainOrLoss( Context *context ) {
 			}
 			// Walljumping is fine but in this environment it might hide bouncing of walls of a pit
 			if( hasChangedZ ) {
-				EnsurePathPenalty( 1000 );
+				EnsurePathPenalty( 1000 + penalty );
 			}
 		}
 	}
@@ -370,7 +391,7 @@ bool BunnyHopAction::CheckStepSpeedGainOrLoss( Context *context ) {
 	// Note: the lower speed limit is raised to actually trigger this check.
 	if( newSquare2DSpeed < 50 * 50 && oldSquare2DSpeed > 100 * 100 ) {
 		if( continueOnFailure ) {
-			EnsurePathPenalty( 1000 );
+			EnsurePathPenalty( 1000 + penalty );
 			return true;
 		}
 		Debug( "A prediction step has lead to close to zero 2D speed while it was significant\n" );
@@ -410,7 +431,7 @@ bool BunnyHopAction::CheckStepSpeedGainOrLoss( Context *context ) {
 	}
 
 	if( continueOnFailure ) {
-		EnsurePathPenalty( 750 );
+		EnsurePathPenalty( 750 + penalty );
 		return true;
 	}
 
@@ -422,11 +443,10 @@ bool BunnyHopAction::CheckStepSpeedGainOrLoss( Context *context ) {
 		return false;
 	}
 
-	unsigned penalty = 0;
 	// If the area is not a "skip collision" area
 	if( !( AiAasWorld::Instance()->AreaSettings()[context->CurrAasAreaNum()].areaflags & AREA_SKIP_COLLISION_16 ) ) {
 		const float frac = ( threshold - speed2D ) * Q_Rcp( threshold );
-		penalty = (unsigned)( 250 + 1250 * Q_Sqrt( frac ) );
+		penalty += (unsigned)( 250 + 1250 * Q_Sqrt( frac ) );
 	}
 
 	EnsurePathPenalty( penalty );
@@ -861,7 +881,7 @@ void BunnyHopAction::CheckPredictionStepResults( Context *context ) {
 	if( const int clusterNum = aasWorld->FloorClusterNum( mayStopAtAreaNum ) ) {
 		if( clusterNum == aasWorld->FloorClusterNum( groundedAreaNum ) ) {
 			if( aasWorld->IsAreaWalkableInFloorCluster( groundedAreaNum, mayStopAtAreaNum ) ) {
-				CompleteOrSaveGoodEnoughPath( context );
+				CompleteOrSaveGoodEnoughPath( context, 1000 );
 				return;
 			}
 			// Floor clusters boundaries are not convex so checking whether
@@ -869,7 +889,7 @@ void BunnyHopAction::CheckPredictionStepResults( Context *context ) {
 			// However it turned out that we need more permissive checks.
 			// This one allows tiny obstacles (that may be jumped over) be in-between these points.
 			if( TraceArcInSolidWorld( mayStopAtOrigin, newEntityPhysicsState.Origin() ) ) {
-				CompleteOrSaveGoodEnoughPath( context, 1000 );
+				CompleteOrSaveGoodEnoughPath( context, 2000 );
 				return;
 			}
 		}
@@ -879,13 +899,26 @@ void BunnyHopAction::CheckPredictionStepResults( Context *context ) {
 		trace_t trace;
 		SolidWorldTrace( &trace, mayStopAtOrigin, newEntityPhysicsState.Origin() );
 		if( trace.fraction == 1.0f ) {
-			CompleteOrSaveGoodEnoughPath( context );
+			CompleteOrSaveGoodEnoughPath( context, 1000 );
 			return;
 		}
 	}
 
-	// We have decided to stop wasting CPU cycles at this.
-	// Attempts to add extra conditions for termination do not produce good bot behaviour.
+	// Allow termination under these conditions but apply a huge penalty
+	// 1) The bot has initially advanced to target (only few frames of a trajectory really get used before its invalidation)
+	// 2) The bot is in a NOFALL area at the moment of termination
+	// 3) The initial area and the closest to target areas were NOFALL areas
+	if( minTravelTimeToNavTargetSoFar && minTravelTimeToNavTargetSoFar != travelTimeAtSequenceStart ) {
+		const auto *const aasAreaSettings = aasWorld->AreaSettings();
+		const auto isBadArea = [=]( int num ) { return !( aasAreaSettings[num].areaflags & AREA_NOFALL ); };
+		const int testedAreas[3] = { groundedAreaNum, groundedAreaAtSequenceStart, minTravelTimeAreaNumSoFar };
+		if( std::find_if( std::begin( testedAreas ), std::end( testedAreas ), isBadArea ) == std::end( testedAreas ) ) {
+			CompleteOrSaveGoodEnoughPath( context, 5000 );
+			return;
+		}
+	}
+
+	// Stop wasting CPU cycles at this.
 	context->SetPendingRollback();
 }
 
@@ -989,6 +1022,10 @@ bool BunnyHopAction::TryTerminationHavingPassedObstacleOrDeltaZ( Context *contex
 		return false;
 	}
 
+	if( !( aasWorld->AreaSettings()[groundedAreaNum].areaflags & AREA_NOFALL ) ) {
+		return false;
+	}
+
 	trace_t trace;
 	// This is intended to check for corners.
 	// This turned out to detect small barriers and produce good bot behaviour results as well.
@@ -997,7 +1034,7 @@ bool BunnyHopAction::TryTerminationHavingPassedObstacleOrDeltaZ( Context *contex
 		return false;
 	}
 
-	CompleteOrSaveGoodEnoughPath( context );
+	CompleteOrSaveGoodEnoughPath( context, 500 );
 	return true;
 }
 
