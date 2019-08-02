@@ -1034,6 +1034,7 @@ float CG_ViewSmoothFallKick( void );
 void CG_AddKickAngles( vec3_t viewangles );
 bool CG_ChaseStep( int step );
 bool CG_SwitchChaseCamMode( void );
+void CG_ClearChaseCam();
 
 //
 // cg_lents.c

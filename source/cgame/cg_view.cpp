@@ -762,6 +762,10 @@ bool CG_SwitchChaseCamMode( void ) {
 	return false;
 }
 
+void CG_ClearChaseCam() {
+	memset( &chaseCam, 0, sizeof( chaseCam ) );
+}
+
 /*
 * CG_UpdateChaseCam
 */

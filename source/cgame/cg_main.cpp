@@ -1007,6 +1007,8 @@ void CG_Reset( void ) {
 
 	CG_ClearAwards();
 
+	CG_ClearChaseCam();
+
 	cg.time = 0;
 	cg.realTime = 0;
 	cg.helpmessage_time = 0;
@@ -1102,6 +1104,8 @@ void CG_Init( const char *serverName, unsigned int playerNum,
 	CG_ClearDecals();
 	CG_ClearPolys();
 	CG_ClearEffects();
+
+	CG_ClearChaseCam();
 
 	CG_InitChat( &cg.chat );
 
