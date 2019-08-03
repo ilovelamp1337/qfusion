@@ -818,7 +818,7 @@ inline float OriginVar::DistanceTo( const OriginVar &that ) const {
 	}
 #endif
 
-	float result = GetUnpacked4uVec( data ).FastDistance2DTo( that.Value() );
+	float result = GetUnpacked4uVec( data ).FastDistanceTo( that.Value() );
 	assert( std::isfinite( result ) );
 	return result;
 }
