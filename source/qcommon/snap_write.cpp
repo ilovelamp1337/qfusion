@@ -461,45 +461,53 @@ static bool SNAP_ViewDirCullEntity( const edict_t *clent, const edict_t *ent ) {
 
 //=====================================================================
 
-#define MAX_SNAPSHOT_ENTITIES   1024
-typedef struct {
-	int numSnapshotEntities;
-	int snapshotEntities[MAX_SNAPSHOT_ENTITIES];
-	uint8_t entityAddedToSnapList[MAX_EDICTS / 8];
-} snapshotEntityNumbers_t;
+class SnapEntNumsList {
+	int nums[MAX_EDICTS];
+	bool added[MAX_EDICTS];
+	int numEnts { 0 };
+	int maxNumSoFar { 0 };
+	bool isSorted { false };
+public:
+	SnapEntNumsList() {
+		memset( added, 0, sizeof( added ) );
+	}
 
-/*
-* SNAP_AddEntNumToSnapList
-*/
-static void SNAP_AddEntNumToSnapList( int entNum, snapshotEntityNumbers_t *entsList ) {
+	const int *begin() const { assert( isSorted ); return nums; }
+	const int *end() const { assert( isSorted ); return nums + numEnts; }
+
+	void AddEntNum( int num );
+
+	void Sort();
+};
+
+void SnapEntNumsList::AddEntNum( int entNum ) {
+	assert( !isSorted );
+
 	if( entNum >= MAX_EDICTS ) {
 		return;
 	}
-	if( entsList->numSnapshotEntities >= MAX_SNAPSHOT_ENTITIES ) { // silent ignore of overflood
+	// silent ignore of overflood
+	if( numEnts >= MAX_EDICTS ) {
 		return;
 	}
 
-	// don't double add entities
-	if( entsList->entityAddedToSnapList[entNum >> 3] & (1 << (entNum & 7)) ) {
-		return;
-	}
-
-	entsList->snapshotEntities[entsList->numSnapshotEntities++] = entNum;
-	entsList->entityAddedToSnapList[entNum >> 3] |=  (1 << (entNum & 7));
+	added[entNum] = true;
+	// Should be a CMOV
+	maxNumSoFar = std::max( entNum, maxNumSoFar );
 }
 
-/*
-* SNAP_SortSnapList
-*/
-static void SNAP_SortSnapList( snapshotEntityNumbers_t *entsList ) {
-	entsList->numSnapshotEntities = 0;
+void SnapEntNumsList::Sort()  {
+	assert( !isSorted );
+	numEnts = 0;
 
 	// avoid adding world to the list by all costs
-	for( int i = 1; i < MAX_EDICTS; i++ ) {
-		if( entsList->entityAddedToSnapList[i >> 3] & (1 << (i & 7)) ) {
-			entsList->snapshotEntities[entsList->numSnapshotEntities++] = i;
+	for( int i = 1; i <= maxNumSoFar; i++ ) {
+		if( added[i] ) {
+			nums[numEnts++] = i;
 		}
 	}
+
+	isSorted = true;
 }
 
 /*
@@ -735,7 +743,7 @@ static bool SNAP_SnapCullEntity( const cmodel_state_t *cms, const edict_t *ent,
 static void SNAP_BuildSnapEntitiesList( cmodel_state_t *cms, ginfo_t *gi,
 										edict_t *clent, vec3_t vieworg, vec3_t skyorg,
 										uint8_t *fatpvs, client_snapshot_t *frame,
-										snapshotEntityNumbers_t *entsList, int snapHintFlags ) {
+										SnapEntNumsList &list, int snapHintFlags ) {
 	int leafnum, clientarea;
 	int clusternum = -1;
 
@@ -763,7 +771,7 @@ static void SNAP_BuildSnapEntitiesList( cmodel_state_t *cms, ginfo_t *gi,
 			}
 
 			// FIXME we should send all the entities who's POV we are sending if frame->multipov
-			SNAP_AddEntNumToSnapList( entNum, entsList );
+			list.AddEntNum( entNum );
 			return;
 		}
 	}
@@ -806,12 +814,12 @@ static void SNAP_BuildSnapEntitiesList( cmodel_state_t *cms, ginfo_t *gi,
 		}
 
 		// add it
-		SNAP_AddEntNumToSnapList( entNum, entsList );
+		list.AddEntNum( entNum );
 
 		if( ent->r.svflags & SVF_FORCEOWNER ) {
 			// make sure owner number is valid too
 			if( ent->s.ownerNum > 0 && ent->s.ownerNum < gi->num_edicts ) {
-				SNAP_AddEntNumToSnapList( ent->s.ownerNum, entsList );
+				list.AddEntNum( ent->s.ownerNum );
 			} else {
 				Com_Printf( "FIXING ENT->S.OWNERNUM: %i %i!!!\n", ent->s.type, ent->s.ownerNum );
 				ent->s.ownerNum = 0;
@@ -819,7 +827,7 @@ static void SNAP_BuildSnapEntitiesList( cmodel_state_t *cms, ginfo_t *gi,
 		}
 	}
 
-	SNAP_SortSnapList( entsList );
+	list.Sort();
 }
 
 /*
@@ -913,19 +921,16 @@ void SNAP_BuildClientFrameSnap( cmodel_state_t *cms, ginfo_t *gi, int64_t frameN
 	}
 
 	// build up the list of visible entities
-	//=============================
-	snapshotEntityNumbers_t entsList;
-	entsList.numSnapshotEntities = 0;
-	memset( entsList.entityAddedToSnapList, 0, sizeof( entsList.entityAddedToSnapList ) );
-	SNAP_BuildSnapEntitiesList( cms, gi, clent, org, fatvis->skyorg, fatvis->pvs, frame, &entsList, snapHintFlags );
+	SnapEntNumsList list;
+	SNAP_BuildSnapEntitiesList( cms, gi, clent, org, fatvis->skyorg, fatvis->pvs, frame, list, snapHintFlags );
 
 	if( developer->integer ) {
 		int olde = -1;
-		for( int e = 0; e < entsList.numSnapshotEntities; e++ ) {
-			if( olde >= entsList.snapshotEntities[e] ) {
+		for( int e : list ) {
+			if( olde >= e ) {
 				Com_Printf( "WARNING 'SV_BuildClientFrameSnap': Unsorted entities list\n" );
 			}
-			olde = entsList.snapshotEntities[e];
+			olde = e;
 		}
 	}
 
@@ -939,9 +944,9 @@ void SNAP_BuildClientFrameSnap( cmodel_state_t *cms, ginfo_t *gi, int64_t frameN
 	frame->num_entities = 0;
 	frame->first_entity = ne;
 
-	for( int e = 0; e < entsList.numSnapshotEntities; e++ ) {
+	for( int e : list ) {
 		// add it to the circular client_entities array
-		const edict_t *ent = EDICT_NUM( entsList.snapshotEntities[e] );
+		const edict_t *ent = EDICT_NUM( e );
 		entity_state_t *state = &client_entities->entities[ne % client_entities->num_entities];
 
 		*state = ent->s;
