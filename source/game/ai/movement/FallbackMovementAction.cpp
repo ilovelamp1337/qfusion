@@ -57,8 +57,6 @@ void FallbackMovementAction::PlanPredictionStep( Context *context ) {
 	}
 
 	botInput->isUcmdSet = true;
-	botInput->canOverrideUcmd = !handledSpecialMovement;
-	botInput->canOverrideLookVec = !handledSpecialMovement;
 	Debug( "Planning is complete: the action should never be predicted ahead\n" );
 	context->isCompleted = true;
 }
