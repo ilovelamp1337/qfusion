@@ -182,6 +182,10 @@ static const wsw::string_view &CL_MM_GetBaseWebUrl() {
 
 //==============================================
 
+shader_t *UI_RegisterRawPic( const char *name, int width, int height, uint8_t *data, int samples ) {
+	return ::R_RegisterRawPic( name, width, height, data, samples );
+}
+
 /*
 * CL_UIModule_Init
 */
@@ -272,7 +276,7 @@ void CL_UIModule_Init( void ) {
 	import.R_ModelFrameBounds = R_ModelFrameBounds;
 	import.R_RegisterModel = R_RegisterModel;
 	import.R_RegisterPic = R_RegisterPic;
-	import.R_RegisterRawPic = R_RegisterRawPic;
+	import.R_RegisterRawPic = UI_RegisterRawPic;
 	import.R_RegisterLevelshot = R_RegisterLevelshot;
 	import.R_RegisterSkin = R_RegisterSkin;
 	import.R_RegisterSkinFile = R_RegisterSkinFile;

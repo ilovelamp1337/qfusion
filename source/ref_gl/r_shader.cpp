@@ -2906,12 +2906,15 @@ shader_t *R_RegisterPic( const char *name ) {
 *
 * Registers default 2D shader with base image provided as raw data.
 */
-shader_t *R_RegisterRawPic_( const char *name, int width, int height, uint8_t *data, int flags, int samples ) {
+shader_t *R_RegisterRawPic_( const char *name, int width, int height, uint8_t *data, int flags, int samples, bool bgra ) {
 	shader_t *s;
 	int type;
 
 	type = SHADER_TYPE_2D_RAW;
 	flags |= IT_SPECIAL;
+	if( bgra ) {
+		flags |= IT_BGRA;
+	}
 
 	s = R_LoadShader( name, type, true, NULL );
 	if( s ) {
@@ -2936,8 +2939,8 @@ shader_t *R_RegisterRawPic_( const char *name, int width, int height, uint8_t *d
 *
 * Registers default 2D shader with base image provided as raw color data.
 */
-shader_t *R_RegisterRawPic( const char *name, int width, int height, uint8_t *data, int samples ) {
-	return R_RegisterRawPic_( name, width, height, data, 0, samples );
+shader_t *R_RegisterRawPic( const char *name, int width, int height, uint8_t *data, int samples, bool bgra ) {
+	return R_RegisterRawPic_( name, width, height, data, 0, samples, bgra );
 }
 
 /*
@@ -2946,7 +2949,7 @@ shader_t *R_RegisterRawPic( const char *name, int width, int height, uint8_t *da
 * Registers default alpha mask shader with base image provided as raw alpha values.
 */
 shader_t *R_RegisterRawAlphaMask( const char *name, int width, int height, uint8_t *data ) {
-	return R_RegisterRawPic_( name, width, height, data, IT_ALPHAMASK, 1 );
+	return R_RegisterRawPic_( name, width, height, data, IT_ALPHAMASK, 1, false );
 }
 
 /*
