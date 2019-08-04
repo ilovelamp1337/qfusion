@@ -741,29 +741,10 @@ static void CG_SC_MenuCustom( void ) {
 }
 
 static void CG_SC_MenuQuick() {
-	if( cgs.demoPlaying ) {
-		return;
-	}
-
-	cg.quickmenu[0] = '\0';
-	const int numArgs = Cmd_Argc();
-	if( numArgs < 2 ) {
-		CG_RefreshQuickMenu();
-		return;
-	}
-
-	wsw::stringstream ss;
-	for( int i = 1, c = 1; i < numArgs; i += 2, c++ ) {
-		const char *label = Cmd_Argv( i );
-		const char *cmd = Cmd_Argv( i + 1 );
-		ss << va( "btn%i \"%s\" ", c, label );
-		ss << va( "cmd%i \"%s%s\" ", c, *cmd ? "cmd " : "", cmd );
-	}
-
-	const wsw::string s( ss.str() );
-	memcpy( cg.quickmenu, s.data(), s.size() + 1 );
-
-	CG_RefreshQuickMenu();
+	// Currently just skip this command.
+	// We do not remove sending of this command by the game server
+	// as we could re-add the quickmenu later (it might be useful for custom gametypes).
+	// This should follow an overall improvement of the UI subsystem (namely switching to the rich Chromium UI).
 }
 
 static void PutRespectMenuItems( int highlightEntryNum ) {
