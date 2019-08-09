@@ -44,6 +44,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 #include <algorithm>
+#include <utility>
+#include <tuple>
 
 #define MAX_LOOPBACK    4
 
@@ -1247,6 +1249,40 @@ bool NET_CompareAddress( const netadr_t *a, const netadr_t *b ) {
 			assert( false );
 			return false;
 	}
+}
+
+static inline uint32_t UInt32FromBytes( const uint8_t *p ) {
+	return ( (uint32_t)p[3] << 24 ) | ( (uint32_t)p[2] << 16 ) | ( (uint32_t)p[1] << 8 ) | p[0];
+}
+
+uint32_t NET_AddressHash( const netadr_t &address ) {
+	if( address.type == NA_IP ) {
+		// TODO: There should be a complile-time alignment guarantee.
+		return UInt32FromBytes( address.address.ipv4.ip );
+	}
+	if( address.type != NA_IP6 ) {
+		return 0;
+	}
+
+	const uint8_t *ip = address.address.ipv6.ip;
+	// Check whether we can read 32-bit words.
+	// TODO: There should be a compile-time guarantee.
+	uint32_t u1, u2, u3, u4;
+	if( !( ( (uintptr_t)ip ) % 4 ) ) {
+		const auto *u = (const uint32_t *)ip;
+		std::tie( u1, u2, u3, u4 ) = std::make_tuple( u[0], u[1], u[2], u[3] );
+	} else {
+		 u1 = UInt32FromBytes( ip + 0 );
+		 u2 = UInt32FromBytes( ip + 4 );
+		 u3 = UInt32FromBytes( ip + 8 );
+		 u4 = UInt32FromBytes( ip + 12 );
+	}
+
+	uint32_t result = u1;
+	result = result * 17 + u2;
+	result = result * 17 + u3;
+	result = result * 17 + u4;
+	return result;
 }
 
 /*

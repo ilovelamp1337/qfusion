@@ -126,6 +126,9 @@ unsigned short  NET_GetAddressPort( const netadr_t *address );
 void            NET_SetAddressPort( netadr_t *address, unsigned short port );
 
 bool    NET_CompareAddress( const netadr_t *a, const netadr_t *b );
+
+uint32_t NET_AddressHash( const netadr_t &address );
+
 bool    NET_CompareBaseAddress( const netadr_t *a, const netadr_t *b );
 bool    NET_IsLANAddress( const netadr_t *address );
 bool    NET_IsLocalAddress( const netadr_t *address );

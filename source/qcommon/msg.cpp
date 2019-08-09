@@ -300,6 +300,13 @@ int MSG_SkipData( msg_t *msg, size_t length ) {
 	return 0;
 }
 
+int MSG_BytesLeft( const msg_t *msg ) {
+	if( msg->readcount < msg->cursize ) {
+		return msg->cursize - msg->readcount;
+	}
+	return 0;
+}
+
 static char *MSG_ReadString2( msg_t *msg, bool linebreak ) {
 	int l, c;
 	static char string[MAX_MSG_STRING_CHARS];

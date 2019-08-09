@@ -44,6 +44,27 @@ std::pair<uint32_t, size_t> GetHashAndLength( const char *s );
  */
 uint32_t GetHashForLength( const char *s, size_t length );
 
+/**
+ * Adds a character to a string hash being built.
+ * This is what {@code GetHashAndLength()} and {@code GetHashForLength()} rely upon.
+ * This can be useful for some in-place hash computations that yield the same result as aforementioned routines.
+ * @param hash a value of the hash so far
+ * @param ch a character to add
+ * @return a combined hash value
+ */
+inline uint32_t NextHashStep( uint32_t hash, char ch ) {
+	auto val = (unsigned char)ch;
+	// Use a fast lowercase conversion for ASCII letters.
+	// First, cast to a signed integer to get a difference.
+	// Second, convert the data as unsigned to promote negative values to huge ones and use a single branch.
+	if( ( (unsigned)( (int)val - 'A' ) ) <= 'Z' - 'A' ) {
+		val = ( val - 'A' ) + 'a';
+	} else if( val == '\\' ) {
+		val = '/';
+	}
+	return hash * 37u + val;
+}
+
 unsigned int COM_SuperFastHash( const unsigned char * data, size_t len, unsigned int hash );
 unsigned int COM_SuperFastHash64BitInt( uint64_t data );
 
