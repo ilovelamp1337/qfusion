@@ -19,7 +19,7 @@ inline void RendererCompositionProxy::ResizeBuffer() {
 }
 
 inline void RendererCompositionProxy::RegisterChromiumBufferShader() {
-	chromiumShader = R_RegisterRawPic( "chromiumBufferShader", width, height, chromiumBuffer, 4 );
+	chromiumShader = R_RegisterRawPic( "chromiumBufferShader", width, height, chromiumBuffer, 4, true );
 }
 
 inline void RendererCompositionProxy::ResetBackground() {
